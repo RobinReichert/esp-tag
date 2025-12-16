@@ -1,31 +1,39 @@
-use core::fmt;
+use core::fmt::{self, Display};
+
+use embassy_sync::channel::{TryReceiveError, TrySendError};
+use esp_radio::esp_now::EspNowError;
+use heapless::CapacityError;
+
+use crate::modules::{message::SendMessage, tree::SlotId};
 
 #[derive(Debug)]
 pub enum TreeError {
-    AddressNotFound,
-    MemoryFull,
+    LeafAllocationError,
+    NodeNotFoundError,
+    LeafNotFoundError(ArenaError),
 }
 
 impl fmt::Display for TreeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TreeError::AddressNotFound => write!(f, "Failed to find Address"),
-            TreeError::MemoryFull=> write!(f, "To much Nodes in the Arena"),
+            Self::LeafAllocationError => write!(f, "Failed to allocate Leaf"),
+            Self::NodeNotFoundError => write!(f, "Could not find Node"),
+            Self::LeafNotFoundError(e) => write!(f, "Could not find Leaf:\n{}", e),
         }
     }
 }
 
 #[derive(Debug)]
 pub enum ArenaError {
-    NodeNotFound,
-    InvalidIndex,
+    SlotEmptyError(SlotId),
+    InvalidIndexError(SlotId),
 }
 
 impl fmt::Display for ArenaError{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ArenaError::NodeNotFound => write!(f, "Failed to find Node"),
-            ArenaError::InvalidIndex=> write!(f, "Index is not used"),
+            ArenaError::SlotEmptyError(e) => write!(f, "Failed to find Node: {}", e),
+            ArenaError::InvalidIndexError(e)=> write!(f, "Index is not used: {}", e),
         }
     }
 }
@@ -33,15 +41,105 @@ impl fmt::Display for ArenaError{
 
 #[derive(Debug)]
 pub enum MeshError {
-    NodeNotFound,
-    InvalidIndex,
+    SliceConversionError(CapacityError),
+    SendQueueError(TrySendError<SendMessage>),
+    ReceiveQueueError(TryReceiveError),
+    TreeSetupError(TreeError),
+    SendMessageError(EspNowError),
+    SerializeMessageError(SendMessageError),
+    RouteError(TreeError),
 }
 
 impl fmt::Display for MeshError{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            MeshError::NodeNotFound => write!(f, "Failed to find Node"),
-            MeshError::InvalidIndex=> write!(f, "Index is not used"),
+            Self::SliceConversionError(e) => write!(f, "Failed to convert slice:\n{}", e),
+            Self::SendQueueError(e) => write!(f, "Failed to send into queue:\n{:?}", e),
+            Self::ReceiveQueueError(e) => write!(f, "Failed to receieve from queue:\n{:?}", e),
+            Self::TreeSetupError(e) => write!(f, "Failed to create route Tree:\n{}", e),
+            Self::SendMessageError(e) => write!(f, "Failed to send message:\n{}", e),
+            Self::SerializeMessageError(e) => write!(f, "Failed to serialize message:\n{}", e),
+            Self::RouteError(e) => write!(f, "Failed to get next hop:\n{}", e),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum CursorError {
+    BufferUnderflowError,
+}
+
+impl fmt::Display for CursorError{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::BufferUnderflowError => write!(f, "Buffer underflow"),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum CodecError {
+    MessageTypeError(MessageTypeError),
+    CursorReadError(CursorError),
+    BufferCapacityError(CapacityError),
+    BufferOverflowError(u8),
+}
+
+impl fmt::Display for CodecError{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MessageTypeError(e) => write!(f, "Error with MessageType:\n{}", e),
+            Self::CursorReadError(e) => write!(f, "Failed to read from Cursor:\n{}", e),
+            Self::BufferCapacityError(e) => write!(f, "Buffer capacity exceeded while extending data.:\n{}", e),
+            Self::BufferOverflowError(e) => write!(f, "Buffer is full; cannot push more bytes:\n{}", e),
+
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum MessageTypeError {
+InvalidMessageType(u8),
+}
+
+impl fmt::Display for MessageTypeError{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidMessageType(e) => write!(f, "Failed to parse message type from: {}", e),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum SendMessageError {
+    MessageTypeEncodeError(CodecError),
+    FinalDestinationEncodeError(CodecError),
+    MessageTooLargeError(CapacityError),
+}
+
+impl fmt::Display for SendMessageError{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MessageTypeEncodeError(e) => write!(f, "Failed to encode MessageType:\n{}", e),
+            Self::FinalDestinationEncodeError(e) => write!(f, "Failed to encode final destination:\n{}", e),
+            Self::MessageTooLargeError(e) => write!(f, "Message size exceeds buffer capacity:\n{}", e),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum ReceiveMessageError {
+    MessageTypeDecodeError(CodecError),
+    FinalDestinationDecodeError(CodecError),
+    BufferOverflowError(CapacityError),
+}
+
+impl fmt::Display for ReceiveMessageError{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MessageTypeDecodeError(e) => write!(f, "Failed to decode message type:\n{}", e),
+            Self::FinalDestinationDecodeError(e) => write!(f, "Failed to decode final destination:\n{}", e),
+            Self::BufferOverflowError(e) => write!(f, "Failed to extend data from cursor buffer:\n{}", e),
         }
     }
 }

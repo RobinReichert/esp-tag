@@ -1,7 +1,7 @@
-use crate::modules::{wire::{WireCodec, Cursor}, node::Node};
+use crate::modules::{error::{CodecError, MessageTypeError, SendMessageError, ReceiveMessageError}, node::Node, wire::{Cursor, WireCodec}};
 use heapless::Vec;
 
-const MESSAGE_SIZE: usize = 256;
+pub const MESSAGE_SIZE: usize = 256;
 
 pub type MessageData = Vec<u8, MESSAGE_SIZE>;
 
@@ -11,22 +11,23 @@ pub enum MessageType {
     Application = 0x01,
 }
 
-impl WireCodec for MessageType {
+impl WireCodec<MESSAGE_SIZE> for MessageType {
     const SIZE: usize = 1;
 
-    fn encode(&self, out: &mut MessageData) -> Result<(), &'static str> {
-        out.push(*self as u8).map_err(|_| "Buffer full")
+    fn encode(&self, out: &mut MessageData) -> Result<(), CodecError> {
+        out.push(*self as u8).map_err(|e| CodecError::BufferOverflowError(e))
     }
 
-    fn decode(cursor: &mut Cursor<'_>) -> Result<Self, &'static str> {
-        let b = cursor.take(1)?[0];
+    fn decode(cursor: &mut Cursor<'_>) -> Result<Self, CodecError> {
+        let b = cursor.take(1).map_err(|e|CodecError::CursorReadError(e))?[0];
         match b {
             0x01 => Ok(MessageType::Application),
-            _ => Err("Unknown MessageType"),
+            e => Err(CodecError::MessageTypeError(MessageTypeError::InvalidMessageType(e))),
         }
     }
 }
 
+#[derive(Debug)]
 pub struct SendMessage {
     message_type: MessageType,
     data: MessageData,
@@ -39,11 +40,11 @@ impl SendMessage {
         return SendMessage{data, final_destination, message_type}; 
     }
 
-    pub fn serialize(&self) -> Result<MessageData, &'static str> {
+    pub fn serialize(&self) -> Result<MessageData, SendMessageError> {
         let mut out = MessageData::new();
-        self.message_type.encode(&mut out)?;
-        self.final_destination.encode(&mut out)?;
-        out.extend_from_slice(&self.data).map_err(|_| "Message too large")?;
+        self.message_type.encode(&mut out).map_err(|e| SendMessageError::MessageTypeEncodeError(e))?;
+        self.final_destination.encode(&mut out).map_err(|e| SendMessageError::FinalDestinationEncodeError(e))?;
+        out.extend_from_slice(&self.data).map_err(|e| SendMessageError::MessageTooLargeError(e))?;
         Ok(out)
     }
 
@@ -59,14 +60,13 @@ pub struct ReceiveMessage {
 
 impl ReceiveMessage {
 
-    pub fn new(payload: MessageData, destination: Node, source: Node) -> Self {
+    pub fn new(payload: MessageData, destination: Node, source: Node) -> Result<Self, ReceiveMessageError> {
         let mut cursor = Cursor::new(&payload);
-        let message_type = MessageType::decode(&mut cursor).expect("Failed to decode message_type");
-        let final_destination = Node::decode(&mut cursor).expect("Failed to decode final_destination");
+        let message_type = MessageType::decode(&mut cursor).map_err(|e| ReceiveMessageError::MessageTypeDecodeError(e))?;
+        let final_destination = Node::decode(&mut cursor).map_err(|e| ReceiveMessageError::FinalDestinationDecodeError(e))?;
         let mut data = MessageData::new();
-        data.extend_from_slice(cursor.remaining())
-            .expect("Failed to copy payload");
-        return ReceiveMessage { destination, _source: source, final_destination, data, message_type }
+        data.extend_from_slice(cursor.remaining()).map_err(|e| ReceiveMessageError::BufferOverflowError(e))?;
+        Ok(ReceiveMessage { destination, _source: source, final_destination, data, message_type })
     }
 
     pub fn is_final_destination(&self) -> bool {

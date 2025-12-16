@@ -61,8 +61,11 @@ async fn main(spawner: Spawner) -> ! {
     let receive_queue = mk_static!(Channel<NoopRawMutex, message::ReceiveMessage, 16>, receive_queue);
     let return_queue = mk_static!(Channel<NoopRawMutex, message::MessageData, 16>, return_queue);
 
-    let mesh = Mesh::new(spawner, send_queue, receive_queue, return_queue, receiver, sender);
-    mesh.send(b"hallo", Node::new([1, 2, 3, 4, 5, 6])).expect("failed to send");
+    let mesh = unwrap_print!(Mesh::new(spawner, send_queue, receive_queue, return_queue, receiver, sender));
+    match mesh.send(b"hallo123test", Node::new([1, 2, 3, 4, 5, 6])) {
+        Ok(_) => (),
+        Err(e) => println!("error:  {}", e),
+    }
 
 
     let mut ticker = Ticker::every(Duration::from_millis(500));

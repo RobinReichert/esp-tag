@@ -4,7 +4,7 @@ use core::{ result::Result, option::Option, cell::RefCell};
 use core::fmt::{self, Display, Formatter};
 use crate::modules::{node::Node, error::{TreeError, ArenaError}};
 
-type SlotId = u16;
+pub type SlotId = u8;
 
 const MAX_LEAFS : usize = 256;
 const MAX_CHILD_LEAFS : usize = 8;
@@ -17,19 +17,19 @@ pub struct Tree{
 
 impl Tree {
 
-    pub fn new(own: Node) -> Self {
+    pub fn new(own: Node) -> Result<Self, TreeError> {
         let root = Leaf::new(own);
         let mut leafs = Arena::new();
-        let root_id = leafs.alloc(root).unwrap();
-        Tree{leafs, root_id: root_id }
+        let root_id = leafs.alloc(root).ok_or(TreeError::LeafAllocationError)?;
+        Ok(Tree{leafs, root_id: root_id })
     }
 
     pub fn upsert_edge(&mut self, from: Node, to: Node) -> Result<(), TreeError> {
         let leaf_id = match self.remove_node_helper(to, self.root_id) {
             Some(id) => id,
-            None => self.leafs.alloc(Leaf::new(to)).ok_or(TreeError::AddressNotFound)?,
+            None => self.leafs.alloc(Leaf::new(to)).ok_or(TreeError::LeafAllocationError)?,
         };
-        self.insert_node_helper(from, self.root_id, leaf_id).ok_or(TreeError::AddressNotFound)
+        self.insert_node_helper(from, self.root_id, leaf_id).ok_or(TreeError::NodeNotFoundError)
     }
 
     fn remove_node_helper(&self, address: Node, current_id: SlotId) -> Option<SlotId> {
@@ -67,7 +67,7 @@ impl Tree {
     }
 
     fn next_hop_helper(&self, destination: Node, current_id: SlotId) -> Result<Node, TreeError> {
-        let current = self.leafs.get(current_id).map_err(|_|TreeError::AddressNotFound)?.borrow();
+        let current = self.leafs.get(current_id).map_err(|e|TreeError::LeafNotFoundError(e))?.borrow();
         if current.node == destination {
             return Ok(current.node);
         }
@@ -75,10 +75,10 @@ impl Tree {
             .find(|&&next_id| {
                  self.next_hop_helper(destination, next_id).is_ok()
             } ) {
-            let ret = self.leafs.get(ret_id).map_err(|_|TreeError::AddressNotFound)?.borrow();
+            let ret = self.leafs.get(ret_id).map_err(|e|TreeError::LeafNotFoundError(e))?.borrow();
             return Ok(ret.node);
         }
-        Err(TreeError::AddressNotFound)
+        Err(TreeError::NodeNotFoundError)
     }
 
     pub fn height(&self) -> usize {
@@ -203,12 +203,12 @@ impl<T, const N: usize> Arena<T, N> {
     }
 
     fn remove(&mut self, id: SlotId) -> Result<RefCell<T>, ArenaError> {
-        let val = self.slots[id as usize].take().ok_or(ArenaError::InvalidIndex)?;
+        let val = self.slots[id as usize].take().ok_or(ArenaError::InvalidIndexError(id))?;
         self.free.push(id).ok();     
         Ok(val)
     }
 
     fn get(&self, id: SlotId) -> Result<&RefCell<T>, ArenaError> {
-        self.slots[id as usize].as_ref().ok_or(ArenaError::NodeNotFound)
+        self.slots[id as usize].as_ref().ok_or(ArenaError::SlotEmptyError(id))
     }
 }
