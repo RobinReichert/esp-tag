@@ -9,25 +9,20 @@
 mod modules;
 
 use embassy_executor::Spawner;
-use embassy_sync::channel::Channel;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
+use embassy_sync::channel::Channel;
 use embassy_time::{Duration, Ticker};
 use esp_alloc as _;
 use esp_backtrace as _;
 use esp_hal::{
-    clock::CpuClock,
-    interrupt::software::SoftwareInterruptControl,
-    timer::timg::TimerGroup,
+    clock::CpuClock, interrupt::software::SoftwareInterruptControl, timer::timg::TimerGroup,
 };
 use esp_println::println;
-use esp_radio::{
-    Controller,
-};
+use esp_radio::Controller;
 
-use crate::modules::{mesh::Mesh, node::Node, message};
+use crate::modules::{mesh::Mesh, message, node::Node};
 
 esp_bootloader_esp_idf::esp_app_desc!();
-
 
 #[esp_rtos::main]
 async fn main(spawner: Spawner) -> ! {
@@ -58,15 +53,22 @@ async fn main(spawner: Spawner) -> ! {
     let receive_queue: Channel<NoopRawMutex, message::ReceiveMessage, 16> = Channel::new();
     let return_queue: Channel<NoopRawMutex, message::MessageData, 16> = Channel::new();
     let send_queue = mk_static!(Channel<NoopRawMutex, message::SendMessage, 16>, send_queue);
-    let receive_queue = mk_static!(Channel<NoopRawMutex, message::ReceiveMessage, 16>, receive_queue);
+    let receive_queue =
+        mk_static!(Channel<NoopRawMutex, message::ReceiveMessage, 16>, receive_queue);
     let return_queue = mk_static!(Channel<NoopRawMutex, message::MessageData, 16>, return_queue);
 
-    let mesh = unwrap_print!(Mesh::new(spawner, send_queue, receive_queue, return_queue, receiver, sender));
+    let mesh = unwrap_print!(Mesh::new(
+        spawner,
+        send_queue,
+        receive_queue,
+        return_queue,
+        receiver,
+        sender
+    ));
     match mesh.send(b"hallo123test", Node::new([1, 2, 3, 4, 5, 6])) {
         Ok(_) => (),
         Err(e) => println!("error:  {}", e),
     }
-
 
     let mut ticker = Ticker::every(Duration::from_millis(500));
     loop {

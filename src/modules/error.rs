@@ -29,15 +29,14 @@ pub enum ArenaError {
     InvalidIndexError(SlotId),
 }
 
-impl fmt::Display for ArenaError{
+impl fmt::Display for ArenaError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ArenaError::SlotEmptyError(e) => write!(f, "Failed to find Node: {}", e),
-            ArenaError::InvalidIndexError(e)=> write!(f, "Index is not used: {}", e),
+            ArenaError::InvalidIndexError(e) => write!(f, "Index is not used: {}", e),
         }
     }
 }
-
 
 #[derive(Debug)]
 pub enum MeshError {
@@ -50,7 +49,7 @@ pub enum MeshError {
     RouteError(TreeError),
 }
 
-impl fmt::Display for MeshError{
+impl fmt::Display for MeshError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::SliceConversionError(e) => write!(f, "Failed to convert slice:\n{}", e),
@@ -69,7 +68,7 @@ pub enum CursorError {
     BufferUnderflowError,
 }
 
-impl fmt::Display for CursorError{
+impl fmt::Display for CursorError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::BufferUnderflowError => write!(f, "Buffer underflow"),
@@ -85,24 +84,27 @@ pub enum CodecError {
     BufferOverflowError(u8),
 }
 
-impl fmt::Display for CodecError{
+impl fmt::Display for CodecError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MessageTypeError(e) => write!(f, "Error with MessageType:\n{}", e),
             Self::CursorReadError(e) => write!(f, "Failed to read from Cursor:\n{}", e),
-            Self::BufferCapacityError(e) => write!(f, "Buffer capacity exceeded while extending data.:\n{}", e),
-            Self::BufferOverflowError(e) => write!(f, "Buffer is full; cannot push more bytes:\n{}", e),
-
+            Self::BufferCapacityError(e) => {
+                write!(f, "Buffer capacity exceeded while extending data.:\n{}", e)
+            }
+            Self::BufferOverflowError(e) => {
+                write!(f, "Buffer is full; cannot push more bytes:\n{}", e)
+            }
         }
     }
 }
 
 #[derive(Debug)]
 pub enum MessageTypeError {
-InvalidMessageType(u8),
+    InvalidMessageType(u8),
 }
 
-impl fmt::Display for MessageTypeError{
+impl fmt::Display for MessageTypeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidMessageType(e) => write!(f, "Failed to parse message type from: {}", e),
@@ -117,12 +119,16 @@ pub enum SendMessageError {
     MessageTooLargeError(CapacityError),
 }
 
-impl fmt::Display for SendMessageError{
+impl fmt::Display for SendMessageError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MessageTypeEncodeError(e) => write!(f, "Failed to encode MessageType:\n{}", e),
-            Self::FinalDestinationEncodeError(e) => write!(f, "Failed to encode final destination:\n{}", e),
-            Self::MessageTooLargeError(e) => write!(f, "Message size exceeds buffer capacity:\n{}", e),
+            Self::FinalDestinationEncodeError(e) => {
+                write!(f, "Failed to encode final destination:\n{}", e)
+            }
+            Self::MessageTooLargeError(e) => {
+                write!(f, "Message size exceeds buffer capacity:\n{}", e)
+            }
         }
     }
 }
@@ -134,12 +140,16 @@ pub enum ReceiveMessageError {
     BufferOverflowError(CapacityError),
 }
 
-impl fmt::Display for ReceiveMessageError{
+impl fmt::Display for ReceiveMessageError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MessageTypeDecodeError(e) => write!(f, "Failed to decode message type:\n{}", e),
-            Self::FinalDestinationDecodeError(e) => write!(f, "Failed to decode final destination:\n{}", e),
-            Self::BufferOverflowError(e) => write!(f, "Failed to extend data from cursor buffer:\n{}", e),
+            Self::FinalDestinationDecodeError(e) => {
+                write!(f, "Failed to decode final destination:\n{}", e)
+            }
+            Self::BufferOverflowError(e) => {
+                write!(f, "Failed to extend data from cursor buffer:\n{}", e)
+            }
         }
     }
 }
