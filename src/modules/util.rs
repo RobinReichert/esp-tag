@@ -9,8 +9,3 @@ macro_rules! mk_static {
     }};
 }
 
-pub fn get_mac_address() -> [u8; 6] {
-    let mut mac = [0u8; 6];
-    mac
-}
-
