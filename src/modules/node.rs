@@ -1,35 +1,34 @@
-
-use crate::modules::wire::{WireCodec, Cursor};
+use crate::modules::{
+    error::CodecError,
+    message::MESSAGE_SIZE,
+    wire::{Cursor, WireCodec},
+};
 use core::cmp::PartialEq;
 use core::fmt;
 
 use heapless::Vec;
 
-pub const SIZE: usize = 6;
-
-
 #[derive(Copy, Clone, Debug)]
 pub struct Node {
-    pub mac: [u8; 6]
+    pub mac: [u8; 6],
 }
 
 impl Node {
-
     pub fn new(mac: [u8; 6]) -> Self {
-        return Node { mac }
+        return Node { mac };
     }
-
 }
 
-impl WireCodec for Node {
+impl WireCodec<MESSAGE_SIZE> for Node {
     const SIZE: usize = 6;
 
-    fn encode(&self, out: &mut Vec<u8, 256>) -> Result<(), &'static str> {
-        out.extend_from_slice(&self.mac).map_err(|_| "Buffer full")
+    fn encode(&self, out: &mut Vec<u8, MESSAGE_SIZE>) -> Result<(), CodecError> {
+        out.extend_from_slice(&self.mac)
+            .map_err(|e| CodecError::BufferCapacityError(e))
     }
 
-    fn decode(cursor: &mut Cursor<'_>) -> Result<Self, &'static str> {
-        let bytes = cursor.take(6)?;
+    fn decode(cursor: &mut Cursor<'_>) -> Result<Self, CodecError> {
+        let bytes = cursor.take(6).map_err(|e| CodecError::CursorReadError(e))?;
         let mut mac = [0u8; 6];
         mac.copy_from_slice(bytes);
         Ok(Node { mac })
@@ -37,16 +36,12 @@ impl WireCodec for Node {
 }
 
 impl PartialEq for Node {
-
     fn eq(&self, other: &Self) -> bool {
-    self.mac.iter()
-            .zip(other.mac.iter())
-            .all(|(a, b)| a == b )
+        self.mac.iter().zip(other.mac.iter()).all(|(a, b)| a == b)
     }
-
 }
 
-impl fmt::Display for Node{
+impl fmt::Display for Node {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (i, byte) in self.mac.iter().enumerate() {
             if i != 0 {
