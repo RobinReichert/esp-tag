@@ -1,0 +1,15 @@
+CI:
+- changed-files:
+  - any-glob-to-any-file: '.github/**'
+
+bin:
+- changed-files:
+  - any-glob-to-any-file: 'src/main.rs'
+
+logic:
+- changed-files:
+  - any-glob-to-any-file: 'src/logic/**'
+
+hardware:
+- changed-files:
+  - any-glob-to-any-file: 'src/hardware/**'
