@@ -7,8 +7,8 @@
 #![no_std]
 #![no_main]
 
-mod logic;
 mod hardware;
+mod logic;
 
 use embassy_executor::Spawner;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
@@ -22,7 +22,10 @@ use esp_hal::{
 use esp_println::println;
 use esp_radio::Controller;
 
-use crate::{logic::{message, node::Node}, hardware::mesh::Mesh};
+use crate::{
+    hardware::mesh::Mesh,
+    logic::{message, node::Node},
+};
 
 esp_bootloader_esp_idf::esp_app_desc!();
 

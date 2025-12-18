@@ -1,8 +1,11 @@
+use crate::logic::{
+    error::{SendMessageError, TreeError},
+    message::SendMessage,
+};
 use core::fmt;
 use embassy_sync::channel::{TryReceiveError, TrySendError};
 use esp_radio::esp_now::EspNowError;
 use heapless::CapacityError;
-use crate::logic::{message::SendMessage, error::{TreeError, SendMessageError}};
 
 #[derive(Debug)]
 pub enum MeshError {

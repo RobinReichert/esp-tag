@@ -1,9 +1,10 @@
-use crate::{logic::{
-    message::{MessageData, MessageType, ReceiveMessage, SendMessage},
-    node::Node,
-    tree::Tree,
-},
+use crate::{
     hardware::error::MeshError,
+    logic::{
+        message::{MessageData, MessageType, ReceiveMessage, SendMessage},
+        node::Node,
+        tree::Tree,
+    },
     unwrap_print,
 };
 use embassy_executor::Spawner;

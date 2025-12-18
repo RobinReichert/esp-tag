@@ -1,6 +1,6 @@
+use crate::logic::tree::SlotId;
 use core::fmt;
 use heapless::CapacityError;
-use crate::logic::tree::SlotId;
 
 #[derive(Debug)]
 pub enum TreeError {
@@ -33,7 +33,6 @@ impl fmt::Display for ArenaError {
         }
     }
 }
-
 
 #[derive(Debug)]
 pub enum CursorError {

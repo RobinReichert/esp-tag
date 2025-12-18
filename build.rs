@@ -22,8 +22,8 @@ fn linker_be_nice() {
                 "_defmt_timestamp" => {
                     eprintln!();
                     eprintln!(
-                    "💡 `defmt` not found - make sure `defmt.x` is added as a linker script and you have included `use defmt_rtt as _;`"
-                );
+                        "💡 `defmt` not found - make sure `defmt.x` is added as a linker script and you have included `use defmt_rtt as _;`"
+                    );
                     eprintln!();
                 }
                 "_stack_start" => {
@@ -34,15 +34,15 @@ fn linker_be_nice() {
                 "esp_rtos_initialized" | "esp_rtos_yield_task" | "esp_rtos_task_create" => {
                     eprintln!();
                     eprintln!(
-                    "💡 `esp-radio` has no scheduler enabled. Make sure you have initialized `esp-rtos` or provided an external scheduler."
-                );
+                        "💡 `esp-radio` has no scheduler enabled. Make sure you have initialized `esp-rtos` or provided an external scheduler."
+                    );
                     eprintln!();
                 }
                 "embedded_test_linker_file_not_added_to_rustflags" => {
                     eprintln!();
                     eprintln!(
-                    "💡 `embedded-test` not found - make sure `embedded-test.x` is added as a linker script for tests"
-                );
+                        "💡 `embedded-test` not found - make sure `embedded-test.x` is added as a linker script for tests"
+                    );
                     eprintln!();
                 }
                 _ => (),
