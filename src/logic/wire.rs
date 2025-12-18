@@ -1,6 +1,6 @@
 use heapless::Vec;
 
-use crate::modules::error::{CodecError, CursorError};
+use crate::logic::error::{CodecError, CursorError};
 
 pub struct Cursor<'a> {
     buf: &'a [u8],

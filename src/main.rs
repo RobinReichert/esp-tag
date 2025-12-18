@@ -3,10 +3,12 @@
 //! Asynchronously broadcasts, receives and sends messages via esp-now in
 //! multiple embassy tasks
 
+#![cfg(feature = "hardware")] // Compile this file only if hardware feature enabled
 #![no_std]
 #![no_main]
 
-mod modules;
+mod logic;
+mod hardware;
 
 use embassy_executor::Spawner;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
@@ -20,7 +22,7 @@ use esp_hal::{
 use esp_println::println;
 use esp_radio::Controller;
 
-use crate::modules::{mesh::Mesh, message, node::Node};
+use crate::{logic::{message, node::Node}, hardware::mesh::Mesh};
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -46,7 +48,7 @@ async fn main(spawner: Spawner) -> ! {
 
     let esp_now = interfaces.esp_now;
     esp_now.set_channel(11).unwrap();
-    println!("esp-now version {}", esp_now.version().unwrap());
+    esp_println::println!("esp-now version {}", esp_now.version().unwrap());
     let (_, sender, receiver) = esp_now.split();
 
     let send_queue: Channel<NoopRawMutex, message::SendMessage, 16> = Channel::new();

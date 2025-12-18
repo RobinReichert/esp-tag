@@ -1,7 +1,14 @@
 fn main() {
     linker_be_nice();
     // make sure linkall.x is the last linker script (otherwise might cause problems with flip-link)
-    println!("cargo:rustc-link-arg=-Tlinkall.x");
+    let target = std::env::var("TARGET").unwrap();
+    if target == "riscv32imc-unknown-none-elf" {
+        println!("cargo:rustc-link-arg=-Tlinkall.x");
+        println!(
+            "cargo:rustc-link-arg=--error-handling-script={}",
+            std::env::current_exe().unwrap().display()
+        );
+    }
 }
 
 fn linker_be_nice() {
@@ -15,8 +22,8 @@ fn linker_be_nice() {
                 "_defmt_timestamp" => {
                     eprintln!();
                     eprintln!(
-                        "💡 `defmt` not found - make sure `defmt.x` is added as a linker script and you have included `use defmt_rtt as _;`"
-                    );
+                    "💡 `defmt` not found - make sure `defmt.x` is added as a linker script and you have included `use defmt_rtt as _;`"
+                );
                     eprintln!();
                 }
                 "_stack_start" => {
@@ -27,15 +34,15 @@ fn linker_be_nice() {
                 "esp_rtos_initialized" | "esp_rtos_yield_task" | "esp_rtos_task_create" => {
                     eprintln!();
                     eprintln!(
-                        "💡 `esp-radio` has no scheduler enabled. Make sure you have initialized `esp-rtos` or provided an external scheduler."
-                    );
+                    "💡 `esp-radio` has no scheduler enabled. Make sure you have initialized `esp-rtos` or provided an external scheduler."
+                );
                     eprintln!();
                 }
                 "embedded_test_linker_file_not_added_to_rustflags" => {
                     eprintln!();
                     eprintln!(
-                        "💡 `embedded-test` not found - make sure `embedded-test.x` is added as a linker script for tests"
-                    );
+                    "💡 `embedded-test` not found - make sure `embedded-test.x` is added as a linker script for tests"
+                );
                     eprintln!();
                 }
                 _ => (),
@@ -48,9 +55,4 @@ fn linker_be_nice() {
 
         std::process::exit(0);
     }
-
-    println!(
-        "cargo:rustc-link-arg=--error-handling-script={}",
-        std::env::current_exe().unwrap().display()
-    );
 }
