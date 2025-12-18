@@ -1,4 +1,4 @@
-use crate::modules::{
+use crate::logic::{
     error::{CodecError, MessageTypeError, ReceiveMessageError, SendMessageError},
     node::Node,
     wire::{Cursor, WireCodec},

@@ -1,4 +1,4 @@
-use crate::modules::{
+use crate::logic::{
     error::{ArenaError, TreeError},
     node::Node,
 };

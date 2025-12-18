@@ -1,6 +1,6 @@
 use crate::{
-    modules::{
-        error::MeshError,
+    hardware::error::MeshError,
+    logic::{
         message::{MessageData, MessageType, ReceiveMessage, SendMessage},
         node::Node,
         tree::Tree,
