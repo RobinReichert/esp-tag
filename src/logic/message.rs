@@ -109,3 +109,101 @@ impl Into<SendMessage> for ReceiveMessage {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use heapless::Vec;
+
+    #[test]
+    fn test_node_encode_decode() {
+        let node = Node::new([1, 2, 3, 4, 5, 6]);
+        let mut out = Vec::<u8, MESSAGE_SIZE>::new();
+        node.encode(&mut out).expect("Encoding failed");
+        assert_eq!(out.len(), 6);
+        assert_eq!(&out[..], &[1, 2, 3, 4, 5, 6]);
+
+        let mut cursor = Cursor::new(&out);
+        let decoded = Node::decode(&mut cursor).expect("Decoding failed");
+        assert_eq!(decoded, node);
+    }
+
+    #[test]
+    fn test_message_type_encode_decode() {
+        let msg_type = MessageType::Application;
+        let mut out = Vec::<u8, MESSAGE_SIZE>::new();
+        msg_type.encode(&mut out).expect("Encoding failed");
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0], 0x01);
+
+        let mut cursor = Cursor::new(&out);
+        let decoded = MessageType::decode(&mut cursor).expect("Decoding failed");
+        assert_eq!(decoded, MessageType::Application);
+    }
+
+    #[test]
+    fn test_send_message_serialize() {
+        let data: Vec<u8, MESSAGE_SIZE> = Vec::from_slice(&[0x10, 0x20, 0x30]).unwrap();
+        let final_destination = Node::new([10, 20, 30, 40, 50, 60]);
+        let msg_type = MessageType::Application;
+        let send_msg = SendMessage::new(data.clone(), final_destination.clone(), msg_type);
+
+        let serialized = send_msg.serialize().expect("Serialize failed");
+
+        // Serialized layout: 1 byte message_type + 6 bytes Node + data
+        assert_eq!(serialized.len(), 1 + 6 + data.len());
+        assert_eq!(serialized[0], 0x01); // MessageType::Application
+        assert_eq!(&serialized[1..7], &final_destination.mac);
+        assert_eq!(&serialized[7..], &data[..]);
+    }
+
+    #[test]
+    fn test_receive_message_new_and_is_final_destination() {
+        let mut payload = Vec::<u8, MESSAGE_SIZE>::new();
+        payload.push(0x01).unwrap(); // MessageType::Application
+        payload.extend_from_slice(&[10, 20, 30, 40, 50, 60]).unwrap(); // final_destination
+        payload.extend_from_slice(&[0x55, 0x66]).unwrap(); // data
+
+        let destination = Node::new([10, 20, 30, 40, 50, 60]);
+        let source = Node::new([1, 2, 3, 4, 5, 6]);
+
+        let recv_msg =
+            ReceiveMessage::new(payload.clone(), destination.clone(), source).expect("ReceiveMessage new failed");
+
+        assert_eq!(recv_msg.message_type, MessageType::Application);
+        assert_eq!(recv_msg.final_destination, destination);
+        assert_eq!(recv_msg.data.len(), 2);
+        assert_eq!(recv_msg.data[0], 0x55);
+        assert_eq!(recv_msg.data[1], 0x66);
+
+        assert!(recv_msg.is_final_destination());
+
+        let other_destination = Node::new([99, 99, 99, 99, 99, 99]);
+        let recv_msg2 =
+            ReceiveMessage::new(payload.clone(), other_destination.clone(), source).expect("ReceiveMessage new failed");
+
+        assert!(!recv_msg2.is_final_destination());
+    }
+
+    #[test]
+    fn test_into_send_message() {
+        let mut payload = Vec::<u8, MESSAGE_SIZE>::new();
+        payload.push(0x01).unwrap(); // MessageType::Application
+        payload.extend_from_slice(&[1, 2, 3, 4, 5, 6]).unwrap(); // final_destination
+        payload.extend_from_slice(&[0x99, 0xAA]).unwrap(); // data
+
+        let destination = Node::new([1, 2, 3, 4, 5, 6]);
+        let source = Node::new([7, 8, 9, 10, 11, 12]);
+
+        let recv_msg =
+            ReceiveMessage::new(payload, destination.clone(), source).expect("ReceiveMessage new failed");
+
+        let send_msg: SendMessage = recv_msg.into();
+
+        assert_eq!(send_msg.message_type, MessageType::Application);
+        assert_eq!(send_msg.final_destination, destination);
+        assert_eq!(send_msg.data.len(), 2);
+        assert_eq!(send_msg.data[0], 0x99);
+        assert_eq!(send_msg.data[1], 0xAA);
+    }
+}
