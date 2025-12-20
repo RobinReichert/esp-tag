@@ -9,4 +9,4 @@ Please include a summary of this pull request.
 ## Checklist
 - [ ] I compiled and tested the code
 - [ ] I have formatted the code using cargo fmt
-- [ ] I updated the documentation if neccessary
+- [ ] I updated the documentation if necessary
