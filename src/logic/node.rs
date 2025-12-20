@@ -52,3 +52,22 @@ impl fmt::Display for Node {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{logic::message::MessageData, unwrap_print};
+
+    use super::*;
+    use heapless::Vec;
+
+    #[test]
+    fn test_node_encode_decode() {
+        let node = Node::new([1, 2, 3, 4, 5, 6]);
+        let mut out = MessageData::new();
+        unwrap_print!(node.encode(&mut out));
+
+        let mut cursor = Cursor::new(&out);
+        let decoded = unwrap_print!(Node::decode(&mut cursor));
+        assert_eq!(decoded, node);
+    }
+}
