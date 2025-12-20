@@ -1,0 +1,84 @@
+name: ci
+
+on:
+  pull_request:
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      src_changed: ${{ steps.src_check.outputs.changed }}
+      logic_changed: ${{ steps.logic_check.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Make check_changes.sh executable
+        run: chmod +x ./.github/check_changes.sh
+
+      - id: src_check
+        run: ./.github/check_changes.sh ${{ github.event.pull_request.base.ref }} 'src/' 'Cargo.toml' 'Cargo.lock' 'build.rs' '.cargo/'
+
+      - id: logic_check
+        run: ./.github/check_changes.sh ${{ github.event.pull_request.base.ref }} 'src/logic/' 'src/lib.rs' 'Cargo.toml' 'Cargo.lock' 'build.rs' '.cargo/'
+
+  fmt-check:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.src_changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Rust toolchain and rustfmt
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt -- --check
+
+  build:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.src_changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Add embedded target
+        run: rustup target add riscv32imc-unknown-none-elf
+
+      - name: Build embedded app
+        run: cargo build --release --no-default-features --features hardware --target riscv32imc-unknown-none-elf
+
+  test:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.logic_changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Test logic components 
+        run: cargo test --no-default-features --features std
+
+  labeler:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/labeler@v6
