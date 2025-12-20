@@ -7,9 +7,9 @@ use core::fmt::{self, Display, Formatter};
 use core::{option::Option, result::Result};
 use heapless::Vec;
 
-const MAX_LEAFS: usize = 256;
+const MAX_LEAFS: usize = 32;
 const MAX_CHILD_LEAFS: usize = 8;
-const MAX_PREFIX: usize = 256;
+const MAX_PREFIX: usize = 32;
 
 pub struct Tree {
     leafs: Arena<Leaf, MAX_LEAFS>,
@@ -204,5 +204,108 @@ impl Leaf {
             nexts: Vec::new(),
             node,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::unwrap_print;
+
+    fn n(mac_last_byte: u8) -> Node {
+        let mut mac = [0u8; 6];
+        mac[5] = mac_last_byte;
+        Node::new(mac)
+    }
+
+    #[test]
+    fn tree_creation() {
+        let root = n(1);
+        let tree = unwrap_print!(Tree::new(root));
+
+        assert_eq!(tree.height(), 1);
+    }
+
+    #[test]
+    fn insert_single_edge() {
+        let mut tree = unwrap_print!(Tree::new(n(0)));
+
+        unwrap_print!(tree.upsert_edge(n(0), n(1)));
+
+        assert_eq!(tree.height(), 2);
+        assert_eq!(unwrap_print!(tree.next_hop(n(1))), n(1));
+    }
+
+    #[test]
+    fn insert_multiple_children() {
+        let mut tree = unwrap_print!(Tree::new(n(0)));
+
+        unwrap_print!(tree.upsert_edge(n(0), n(1)));
+        unwrap_print!(tree.upsert_edge(n(0), n(2)));
+        unwrap_print!(tree.upsert_edge(n(0), n(3)));
+
+        assert_eq!(tree.height(), 2);
+        assert_eq!(unwrap_print!(tree.next_hop(n(1))), n(1));
+        assert_eq!(unwrap_print!(tree.next_hop(n(2))), n(2));
+        assert_eq!(unwrap_print!(tree.next_hop(n(3))), n(3));
+    }
+
+    #[test]
+    fn insert_deep_tree() {
+        let mut tree = unwrap_print!(Tree::new(n(0)));
+
+        unwrap_print!(tree.upsert_edge(n(0), n(1)));
+        unwrap_print!(tree.upsert_edge(n(1), n(2)));
+        unwrap_print!(tree.upsert_edge(n(2), n(3)));
+        unwrap_print!(tree.upsert_edge(n(3), n(4)));
+
+        assert_eq!(tree.height(), 5);
+
+        assert_eq!(unwrap_print!(tree.next_hop(n(4))), n(1));
+        assert_eq!(unwrap_print!(tree.next_hop(n(3))), n(1));
+        assert_eq!(unwrap_print!(tree.next_hop(n(2))), n(1));
+    }
+
+    #[test]
+    fn reparent_node_with_upsert() {
+        let mut tree = unwrap_print!(Tree::new(n(0)));
+
+        unwrap_print!(tree.upsert_edge(n(0), n(1)));
+        unwrap_print!(tree.upsert_edge(n(1), n(2)));
+
+        unwrap_print!(tree.upsert_edge(n(0), n(2)));
+
+        assert_eq!(tree.height(), 2);
+        assert_eq!(unwrap_print!(tree.next_hop(n(2))), n(2));
+    }
+
+    #[test]
+    fn next_hop_unknown_node() {
+        let tree = unwrap_print!(Tree::new(n(0)));
+
+        let err = tree.next_hop(n(42)).unwrap_err();
+        assert!(matches!(err, TreeError::NodeNotFoundError));
+    }
+
+    #[test]
+    fn insert_under_unknown_parent() {
+        let mut tree = unwrap_print!(Tree::new(n(0)));
+
+        let err = tree.upsert_edge(n(99), n(1)).unwrap_err();
+        assert!(matches!(err, TreeError::NodeNotFoundError));
+    }
+
+    #[test]
+    fn height_with_branching() {
+        let mut tree = unwrap_print!(Tree::new(n(0)));
+
+        unwrap_print!(tree.upsert_edge(n(0), n(1)));
+        unwrap_print!(tree.upsert_edge(n(1), n(2)));
+
+        unwrap_print!(tree.upsert_edge(n(0), n(3)));
+        unwrap_print!(tree.upsert_edge(n(3), n(4)));
+        unwrap_print!(tree.upsert_edge(n(4), n(5)));
+
+        assert_eq!(tree.height(), 4);
     }
 }
