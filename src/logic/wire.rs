@@ -32,3 +32,56 @@ pub trait WireCodec<const N: usize>: Sized {
     fn encode(&self, out: &mut Vec<u8, N>) -> Result<(), CodecError>;
     fn decode(cursor: &mut Cursor<'_>) -> Result<Self, CodecError>;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::unwrap_print;
+    use heapless::Vec;
+
+    #[test]
+    fn test_cursor_take_success() {
+        let data = &[1, 2, 3, 4, 5];
+        let mut cursor = Cursor::new(data);
+
+        let slice = unwrap_print!(cursor.take(3));
+        assert_eq!(slice, &[1, 2, 3]);
+
+        assert_eq!(cursor.remaining(), &[4, 5]);
+
+        let slice2 = unwrap_print!(cursor.take(2));
+        assert_eq!(slice2, &[4, 5]);
+
+        assert!(cursor.remaining().is_empty());
+    }
+
+    #[test]
+    fn test_cursor_take_underflow() {
+        let data = &[1, 2];
+        let mut cursor = Cursor::new(data);
+
+        let err = cursor.take(3).unwrap_err();
+        assert!(matches!(err, CursorError::BufferUnderflowError));
+
+        assert_eq!(cursor.remaining(), &[1, 2]);
+
+        let slice = unwrap_print!(cursor.take(2));
+        assert_eq!(slice, &[1, 2]);
+    }
+
+    #[test]
+    fn test_cursor_remaining_returns_correct_slice() {
+        let data = &[10, 20, 30, 40];
+        let mut cursor = Cursor::new(data);
+
+        assert_eq!(cursor.remaining(), &[10, 20, 30, 40]);
+
+        unwrap_print!(cursor.take(2));
+
+        assert_eq!(cursor.remaining(), &[30, 40]);
+
+        unwrap_print!(cursor.take(2));
+
+        assert_eq!(cursor.remaining(), &[]);
+    }
+}
