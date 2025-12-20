@@ -1,4 +1,4 @@
-use crate::logic::tree::SlotId;
+use crate::logic::arena::SlotId;
 use core::fmt;
 use heapless::CapacityError;
 
