@@ -1,16 +1,28 @@
-name: "format check & build"
+name: ci
 
 on:
   pull_request:
-    paths:
-      - 'src/**'
-      - '.cargo/**'
-      - 'build.rs'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      src_changed: ${{ steps.src_check.outputs.changed }}
+      logic_changed: ${{ steps.logic_check.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - id: src_check
+        run: ./.github/check_changes.sh ${{ github.event.pull_request.base.ref }} 'src/' 'Cargo.toml' 'Cargo.lock' 'build.rs' '.cargo/'
+
+      - id: logic_check
+        run: ./.github/check_changes.sh ${{ github.event.pull_request.base.ref }} 'src/logic/' 'src/lib.rs' 'Cargo.toml' 'Cargo.lock' 'build.rs' '.cargo/'
+
   fmt-check:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.src_changed == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -26,6 +38,8 @@ jobs:
         run: cargo fmt -- --check
 
   build:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.src_changed == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -43,6 +57,8 @@ jobs:
         run: cargo build --release --no-default-features --features hardware --target riscv32imc-unknown-none-elf
 
   test:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.logic_changed == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -55,3 +71,11 @@ jobs:
 
       - name: Test logic components 
         run: cargo test --no-default-features --features std
+
+  labeler:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/labeler@v6
