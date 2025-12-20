@@ -50,14 +50,18 @@ cargo run --release --no-default-features --features hardware --target riscv32im
 ```sh
 cargo test --no-default-features --features std
 ```
-## Contributing
 
+---
+
+## Contributing
 We welcome contributions! To ensure smooth collaboration, please:
 
 - Fork the repository and create your feature branch.
 - Write clear, well-documented code.
 - Add tests for any new functionality.
 - Submit a pull request and describe your changes.
+
+---
 
 ## License
 This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
