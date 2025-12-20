@@ -118,5 +118,4 @@ mod tests {
         let mut arena: Arena<i32, 1> = Arena::new();
         let _ = arena.remove(2).unwrap();
     }
-
 }
