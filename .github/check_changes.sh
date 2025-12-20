@@ -18,9 +18,7 @@ pattern=$(IFS="|"; echo "${PATTERNS[*]}")
 
 echo "Looking for changes matching pattern: $pattern"
 
-echo "$changed_files" | grep -E "^($pattern)" >/dev/null 2>&1
-
-if [ $? -eq 0 ]; then
+if echo "$changed_files" | grep -E "^($pattern)" >/dev/null 2>&1; then
   echo "changed=true" >> $GITHUB_OUTPUT
 else
   echo "changed=false" >> $GITHUB_OUTPUT
