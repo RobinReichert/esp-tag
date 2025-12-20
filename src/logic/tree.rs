@@ -1,6 +1,6 @@
 use crate::logic::{
     arena::{Arena, SlotId},
-    error::{TreeError},
+    error::TreeError,
     node::Node,
 };
 use core::fmt::{self, Display, Formatter};
