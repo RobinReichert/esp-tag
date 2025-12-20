@@ -13,3 +13,7 @@ logic:
 hardware:
 - changed-files:
   - any-glob-to-any-file: 'src/hardware/**'
+
+documentation:
+- changed-files:
+  - any-glob-to-any-file: 'README.md'
