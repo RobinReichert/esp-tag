@@ -1,5 +1,13 @@
-![logo](.github/logo.svg)
-# ESP32 Laser Tag System
+<table>
+  <tr>
+    <td>
+      <img src="assets/logo.svg" width="80">
+    </td>
+    <td>
+      <h1>ESP32 Laser Tag System</h1>
+    </td>
+  </tr>
+</table>
 
 An open-source laser tag system built on the ESP32c3
 
