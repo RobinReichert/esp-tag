@@ -1,7 +1,7 @@
-<p>
-  <img src=".github/logo.svg" width="80" style="vertical-align: middle; margin-right: 10px;">
-  <span style="font-size: 2em; vertical-align: middle;">ESP32 Laser Tag System</span>
-</p>
+<div style="display: flex; align-items: center;">
+  <img src=".github/logo.svg" width="80" style="margin-right: 10px;">
+  <h1 style="margin: 0;">ESP32 Laser Tag System</h1>
+</div>
 
 An open-source laser tag system built on the ESP32c3
 
