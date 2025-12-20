@@ -1,7 +1,10 @@
-use crate::logic::{
-    error::{CodecError, MessageTypeError, ReceiveMessageError, SendMessageError},
-    node::Node,
-    wire::{Cursor, WireCodec},
+use crate::{
+    logic::{
+        error::{CodecError, MessageTypeError, ReceiveMessageError, SendMessageError},
+        node::Node,
+        wire::{Cursor, WireCodec},
+    },
+    unwrap_print,
 };
 use heapless::Vec;
 
@@ -107,5 +110,58 @@ impl Into<SendMessage> for ReceiveMessage {
             final_destination: self.final_destination,
             data: self.data,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use heapless::Vec;
+
+    #[test]
+    fn test_message_type_encode_decode() {
+        let msg_type = MessageType::Application;
+        let mut out = MessageData::new();
+        unwrap_print!(msg_type.encode(&mut out));
+
+        let mut cursor = Cursor::new(&out);
+        let decoded = unwrap_print!(MessageType::decode(&mut cursor));
+        assert_eq!(decoded, MessageType::Application);
+    }
+
+    #[test]
+    fn test_send_message_to_receive_message() {
+        let data: MessageData = Vec::from_slice(&[0x10, 0x20, 0x30]).unwrap();
+        let final_destination = Node::new([10, 20, 30, 40, 50, 60]);
+        let destination = Node::new([10, 20, 30, 40, 50, 60]);
+        let source = Node::new([10, 20, 30, 40, 50, 60]);
+        let msg_type = MessageType::Application;
+        let send_msg = SendMessage::new(data.clone(), final_destination.clone(), msg_type);
+
+        let serialized = unwrap_print!(send_msg.serialize());
+
+        let receive_msg = unwrap_print!(ReceiveMessage::new(serialized, destination, source));
+
+        assert_eq!(data, receive_msg.data);
+        assert_eq!(final_destination, receive_msg.final_destination);
+        assert_eq!(msg_type, receive_msg.message_type);
+    }
+
+    #[test]
+    fn test_receive_message_into_send_message() {
+        let data: MessageData = Vec::from_slice(&[0x10, 0x20, 0x30]).unwrap();
+        let final_destination = Node::new([10, 20, 30, 40, 50, 60]);
+        let destination = Node::new([10, 20, 30, 40, 50, 60]);
+        let source = Node::new([10, 20, 30, 40, 50, 60]);
+        let msg_type = MessageType::Application;
+        let tmpl_msg = SendMessage::new(data.clone(), final_destination.clone(), msg_type);
+
+        let serialized = unwrap_print!(tmpl_msg.serialize());
+        let receive_msg = unwrap_print!(ReceiveMessage::new(serialized, destination, source));
+        let send_msg: SendMessage = receive_msg.into();
+
+        assert_eq!(data, send_msg.data);
+        assert_eq!(final_destination, send_msg.final_destination);
+        assert_eq!(msg_type, send_msg.message_type);
     }
 }
