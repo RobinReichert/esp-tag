@@ -1,7 +1,7 @@
 <table>
   <tr>
     <td>
-      <img src="assets/logo.svg" width="80">
+      <img src=".github/logo.svg" width="80">
     </td>
     <td>
       <h1>ESP32 Laser Tag System</h1>
