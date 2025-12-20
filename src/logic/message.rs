@@ -1,10 +1,7 @@
-use crate::{
-    logic::{
-        error::{CodecError, MessageTypeError, ReceiveMessageError, SendMessageError},
-        node::Node,
-        wire::{Cursor, WireCodec},
-    },
-    unwrap_print,
+use crate::logic::{
+    error::{CodecError, MessageTypeError, ReceiveMessageError, SendMessageError},
+    node::Node,
+    wire::{Cursor, WireCodec},
 };
 use heapless::Vec;
 
@@ -116,6 +113,7 @@ impl Into<SendMessage> for ReceiveMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::unwrap_print;
     use heapless::Vec;
 
     #[test]
