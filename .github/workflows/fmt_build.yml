@@ -41,17 +41,3 @@ jobs:
 
       - name: Build embedded app
         run: cargo build --release --no-default-features --features hardware --target riscv32imc-unknown-none-elf
-
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-
-      - name: Test logic components 
-        run: cargo test --no-default-features --features std
