@@ -1,3 +1,4 @@
+![logo](.github/logo.svg)
 # ESP32 Laser Tag System
 
 An open-source laser tag system built on the ESP32c3
