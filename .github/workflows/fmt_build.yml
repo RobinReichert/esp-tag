@@ -1,7 +1,13 @@
-name: CI
+name: "format check & build"
 
 on:
   pull_request:
+    paths:
+      - 'src/**'
+      - '.cargo/**'
+      - 'build.rs'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
 
 jobs:
   fmt-check:
