@@ -1,5 +1,4 @@
 use heapless::Vec;
-
 use crate::logic::error::{CodecError, CursorError};
 
 pub struct Cursor<'a> {
@@ -27,17 +26,44 @@ impl<'a> Cursor<'a> {
 }
 
 pub trait WireCodec<const N: usize>: Sized {
-    const SIZE: usize;
-
     fn encode(&self, out: &mut Vec<u8, N>) -> Result<(), CodecError>;
     fn decode(cursor: &mut Cursor<'_>) -> Result<Self, CodecError>;
+}
+
+impl<T, const N: usize> WireCodec<N> for Option<T>
+where
+    T: WireCodec<N>,
+{
+    fn encode(&self, out: &mut Vec<u8, N>) -> Result<(), CodecError> {
+        match self {
+            None => {
+                out.push(0).map_err(|e| CodecError::BufferOverflowError(e))?;
+            }
+            Some(value) => {
+                out.push(1).map_err(|e| CodecError::BufferOverflowError(e))?;
+                value.encode(out)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn decode(cursor: &mut Cursor<'_>) -> Result<Self, CodecError> {
+        let flag = cursor
+            .take(1)
+            .map_err(|e| CodecError::CursorReadError(e))?[0];
+
+        match flag {
+            0 => Ok(None),
+            1 => Ok(Some(T::decode(cursor)?)),
+            x => Err(CodecError::InvalidOptionFlagError(x)),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::unwrap_print;
-    use heapless::Vec;
 
     #[test]
     fn test_cursor_take_success() {
