@@ -1,8 +1,13 @@
-use crate::logic::{arena::SlotId, link::SendData, message::{MessageData, ReceiveMessage}, node::Node};
+use crate::logic::{
+    arena::SlotId,
+    link::SendData,
+    message::{MessageData, ReceiveMessage},
+    node::Node,
+};
 use core::fmt;
 use embassy_executor::SpawnError;
-use heapless::CapacityError;
 use embassy_sync::channel::{TryReceiveError, TrySendError};
+use heapless::CapacityError;
 
 #[derive(Debug)]
 pub enum LinkError {
@@ -14,8 +19,16 @@ pub enum LinkError {
 impl fmt::Display for LinkError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::QueueFullError(e) => write!(f, "Failed to push new message since message queue was full:\n{:?}", e),
-            Self::QueueEmptyError(e) => write!(f, "Failed to receive new message since message queue was empty:\n{:?}", e),
+            Self::QueueFullError(e) => write!(
+                f,
+                "Failed to push new message since message queue was full:\n{:?}",
+                e
+            ),
+            Self::QueueEmptyError(e) => write!(
+                f,
+                "Failed to receive new message since message queue was empty:\n{:?}",
+                e
+            ),
             Self::MockError => write!(f, "Nothing failed this is just a test"),
         }
     }
@@ -41,9 +54,15 @@ impl fmt::Display for MeshError {
             Self::TreeError(e) => write!(f, "Failed to get next hop:\n{}", e),
             Self::LinkError(e) => write!(f, "Link produced an error:\n{}", e),
             Self::ReceiveMessageError(e) => write!(f, "Failed to create ReceiveMessage:\n{}", e),
-            Self::OrganizeQueueSendError(e) => write!(f, "Failed to send receive message to channel:\n{:?}", e),
-            Self::OrganizeQueueRecvError(e) => write!(f, "Failed to receive message from channel:\n{:?}", e),
-            Self::ReceiveQueueSendError(e) => write!(f, "Failed to send receive message to channel:\n{:?}", e),
+            Self::OrganizeQueueSendError(e) => {
+                write!(f, "Failed to send receive message to channel:\n{:?}", e)
+            }
+            Self::OrganizeQueueRecvError(e) => {
+                write!(f, "Failed to receive message from channel:\n{:?}", e)
+            }
+            Self::ReceiveQueueSendError(e) => {
+                write!(f, "Failed to send receive message to channel:\n{:?}", e)
+            }
         }
     }
 }

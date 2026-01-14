@@ -1,4 +1,4 @@
-use crate::logic::{message::MessageData, node::Node, error::LinkError};
+use crate::logic::{error::LinkError, message::MessageData, node::Node};
 use core::future::Future;
 
 #[cfg(feature = "hardware")]
@@ -27,13 +27,12 @@ pub trait Link<'a> {
     fn try_receive(&self) -> Result<RecvData, LinkError>;
 }
 
-
 #[cfg(feature = "std")]
 pub mod mock {
     use super::*;
     use std::collections::hash_map::HashMap;
-    use tokio::sync::mpsc::{channel, Receiver, Sender};
     use tokio::sync::Mutex;
+    use tokio::sync::mpsc::{Receiver, Sender, channel};
 
     pub struct MockLink {
         foreign_senders: HashMap<Node, Sender<MockMessage>>,
@@ -53,13 +52,17 @@ pub mod mock {
         pub fn new(node: Node) -> Self {
             let foreign_senders: HashMap<Node, Sender<MockMessage>> = HashMap::new();
             let (sender, receiver) = channel(32);
-            return MockLink { foreign_senders, receiver: Mutex::new(receiver), sender, node }
+            return MockLink {
+                foreign_senders,
+                receiver: Mutex::new(receiver),
+                sender,
+                node,
+            };
         }
 
         pub fn connect(&mut self, link: &MockLink) {
-            self.foreign_senders.insert(link.node, link.sender.clone()); 
+            self.foreign_senders.insert(link.node, link.sender.clone());
         }
-
     }
 
     impl<'a> Link<'a> for MockLink {
@@ -91,19 +94,34 @@ pub mod mock {
             } else {
                 println!("not connected to {}", destination);
             }
-            Ok(()) 
+            Ok(())
         }
 
         fn receive(&'a self) -> impl Future<Output = RecvData> {
             async {
                 let message = self.receiver.lock().await.recv().await.unwrap();
-                RecvData{rssi: message.rssi, data: message.data, source: message.source, destination: message.destination}
+                RecvData {
+                    rssi: message.rssi,
+                    data: message.data,
+                    source: message.source,
+                    destination: message.destination,
+                }
             }
         }
 
         fn try_receive(&self) -> Result<RecvData, LinkError> {
-            let message = self.receiver.try_lock().map_err(|_| LinkError::MockError)?.try_recv().map_err(|_| LinkError::MockError)?;
-            Ok(RecvData{rssi: message.rssi, data: message.data, source: message.source, destination: message.destination})
+            let message = self
+                .receiver
+                .try_lock()
+                .map_err(|_| LinkError::MockError)?
+                .try_recv()
+                .map_err(|_| LinkError::MockError)?;
+            Ok(RecvData {
+                rssi: message.rssi,
+                data: message.data,
+                source: message.source,
+                destination: message.destination,
+            })
         }
     }
 }

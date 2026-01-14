@@ -11,9 +11,9 @@ mod hardware;
 mod logic;
 
 use embassy_executor::Spawner;
-use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 use embassy_sync::channel::Channel;
 use embassy_sync::mutex::Mutex;
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 use embassy_time::{Duration, Ticker};
 use esp_alloc as _;
 use esp_backtrace as _;
@@ -23,9 +23,7 @@ use esp_hal::{
 use esp_println::println;
 use esp_radio::{Controller, esp_now::BROADCAST_ADDRESS};
 
-use crate::{
-    logic::{message, node::Node, tree::Tree, mesh},
-};
+use crate::logic::{mesh, message, node::Node, tree::Tree};
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -54,41 +52,40 @@ async fn main(spawner: Spawner) -> ! {
     esp_println::println!("esp-now version {}", esp_now.version().unwrap());
     let (_, sender, receiver) = esp_now.split();
     loop {}
-/*
-    let joined: Signal<NoopRawMutex, bool> = Signal::new();
-    let joined = mk_static!(Signal<NoopRawMutex, bool>, joined);
-    let leader: Signal<NoopRawMutex, bool> = Signal::new();
-    let leader = mk_static!(Signal<NoopRawMutex, bool>, leader);
-    let send_queue: Channel<NoopRawMutex, message::SendMessage, 16> = Channel::new();
-    let receive_queue: Channel<NoopRawMutex, message::ReceiveMessage, 16> = Channel::new();
-    let return_queue: Channel<NoopRawMutex, message::MessageData, 16> = Channel::new();
-    let leader_queue: Channel<NoopRawMutex, message::ReceiveMessage, 16> = Channel::new();
-    let leader_queue = mk_static!(Channel<NoopRawMutex, message::ReceiveMessage, 16>, leader_queue);
-    let send_queue = mk_static!(Channel<NoopRawMutex, message::SendMessage, 16>, send_queue);
-    let receive_queue =
-    mk_static!(Channel<NoopRawMutex, message::ReceiveMessage, 16>, receive_queue);
-    let return_queue = mk_static!(Channel<NoopRawMutex, message::MessageData, 16>, return_queue);
-    let own_node = Node::new(BROADCAST_ADDRESS);
-    let route: Mutex<NoopRawMutex, Tree> = Mutex::new(unwrap_print!(Tree::new(own_node)));
-    let route = mk_static!(Mutex<NoopRawMutex, Tree>, route);
-    let mesh = unwrap_print!(Mesh::new(
-        spawner,
-        route,
-        receiver,
-        sender
-    ));
-    match mesh.send(b"hallo123test", Node::new([1, 2, 3, 4, 5, 6])) {
-        Ok(_) => (),
-        Err(e) => println!("error:  {}", e),
-    }
-
-    let mut ticker = Ticker::every(Duration::from_millis(500));
-    loop {
-        if mesh.has_message() {
-            println!("{:?}", mesh.get_message().expect("failed to get message"));
+    /*
+        let joined: Signal<NoopRawMutex, bool> = Signal::new();
+        let joined = mk_static!(Signal<NoopRawMutex, bool>, joined);
+        let leader: Signal<NoopRawMutex, bool> = Signal::new();
+        let leader = mk_static!(Signal<NoopRawMutex, bool>, leader);
+        let send_queue: Channel<NoopRawMutex, message::SendMessage, 16> = Channel::new();
+        let receive_queue: Channel<NoopRawMutex, message::ReceiveMessage, 16> = Channel::new();
+        let return_queue: Channel<NoopRawMutex, message::MessageData, 16> = Channel::new();
+        let leader_queue: Channel<NoopRawMutex, message::ReceiveMessage, 16> = Channel::new();
+        let leader_queue = mk_static!(Channel<NoopRawMutex, message::ReceiveMessage, 16>, leader_queue);
+        let send_queue = mk_static!(Channel<NoopRawMutex, message::SendMessage, 16>, send_queue);
+        let receive_queue =
+        mk_static!(Channel<NoopRawMutex, message::ReceiveMessage, 16>, receive_queue);
+        let return_queue = mk_static!(Channel<NoopRawMutex, message::MessageData, 16>, return_queue);
+        let own_node = Node::new(BROADCAST_ADDRESS);
+        let route: Mutex<NoopRawMutex, Tree> = Mutex::new(unwrap_print!(Tree::new(own_node)));
+        let route = mk_static!(Mutex<NoopRawMutex, Tree>, route);
+        let mesh = unwrap_print!(Mesh::new(
+            spawner,
+            route,
+            receiver,
+            sender
+        ));
+        match mesh.send(b"hallo123test", Node::new([1, 2, 3, 4, 5, 6])) {
+            Ok(_) => (),
+            Err(e) => println!("error:  {}", e),
         }
-        ticker.next().await;
-    }
-*/
 
+        let mut ticker = Ticker::every(Duration::from_millis(500));
+        loop {
+            if mesh.has_message() {
+                println!("{:?}", mesh.get_message().expect("failed to get message"));
+            }
+            ticker.next().await;
+        }
+    */
 }

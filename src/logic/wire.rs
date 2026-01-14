@@ -1,5 +1,5 @@
-use heapless::Vec;
 use crate::logic::error::{CodecError, CursorError};
+use heapless::Vec;
 
 pub struct Cursor<'a> {
     buf: &'a [u8],
@@ -37,10 +37,12 @@ where
     fn encode(&self, out: &mut Vec<u8, N>) -> Result<(), CodecError> {
         match self {
             None => {
-                out.push(0).map_err(|e| CodecError::BufferOverflowError(e))?;
+                out.push(0)
+                    .map_err(|e| CodecError::BufferOverflowError(e))?;
             }
             Some(value) => {
-                out.push(1).map_err(|e| CodecError::BufferOverflowError(e))?;
+                out.push(1)
+                    .map_err(|e| CodecError::BufferOverflowError(e))?;
                 value.encode(out)?;
             }
         }
@@ -48,9 +50,7 @@ where
     }
 
     fn decode(cursor: &mut Cursor<'_>) -> Result<Self, CodecError> {
-        let flag = cursor
-            .take(1)
-            .map_err(|e| CodecError::CursorReadError(e))?[0];
+        let flag = cursor.take(1).map_err(|e| CodecError::CursorReadError(e))?[0];
 
         match flag {
             0 => Ok(None),

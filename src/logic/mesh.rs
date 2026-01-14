@@ -1,15 +1,23 @@
 use embassy_executor::Spawner;
-use embassy_futures::select::{select, Either};
+use embassy_futures::select::{Either, select};
+use embassy_sync::blocking_mutex::raw::NoopRawMutex;
+use embassy_sync::channel::Channel;
+use embassy_sync::mutex::Mutex;
+use embassy_time::{Duration, Ticker, Timer};
 #[cfg(feature = "hardware")]
 #[allow(unused_imports)]
 use esp_println::println;
-use embassy_sync::channel::Channel;
-use embassy_sync::blocking_mutex::raw::NoopRawMutex;
-use embassy_sync::mutex::Mutex;
-use embassy_time::{Duration, Timer, Ticker};
-use heapless::{Vec, LinearMap};
+use heapless::{LinearMap, Vec};
 
-use crate::logic::{error::{MeshError, TreeError}, link::{ActiveLink, Link}, message::{MessageContent, MessageData, MessageType, ReceiveMessage, SendMessage, BROADCAST_NODE}, node::Node, tree::{self, Tree}};
+use crate::logic::{
+    error::{MeshError, TreeError},
+    link::{ActiveLink, Link},
+    message::{
+        BROADCAST_NODE, MessageContent, MessageData, MessageType, ReceiveMessage, SendMessage,
+    },
+    node::Node,
+    tree::{self, Tree},
+};
 
 const RECV_QUEUE_SIZE: usize = 16;
 const ORGANIZE_QUEUE_SIZE: usize = 16;
@@ -24,14 +32,16 @@ pub struct Mesh {
 
 impl Mesh {
     pub fn new(
-        spawner: Spawner, 
-        link: &'static ActiveLink, 
+        spawner: Spawner,
+        link: &'static ActiveLink,
         tree: &'static Mutex<NoopRawMutex, Tree>,
         recv_queue: &'static Channel<NoopRawMutex, (MessageData, Node), RECV_QUEUE_SIZE>,
         organize_queue: &'static Channel<NoopRawMutex, ReceiveMessage, ORGANIZE_QUEUE_SIZE>,
     ) -> Result<Self, MeshError> {
         spawner.spawn(searcher_task(spawner, tree, link, organize_queue));
-        spawner.spawn(dispatcher_task(link, tree, recv_queue, organize_queue)).map_err(|e| MeshError::SpawnError(e))?;
+        spawner
+            .spawn(dispatcher_task(link, tree, recv_queue, organize_queue))
+            .map_err(|e| MeshError::SpawnError(e))?;
         Ok(Self {
             link,
             tree,
@@ -43,17 +53,31 @@ impl Mesh {
     pub async fn send(&self, data: MessageData, destination: Node) -> Result<(), MeshError> {
         let content = MessageContent::Application(data);
         Self::send_content(self.link, self.tree, content, destination).await
-
     }
 
     pub async fn receive(&self) -> (MessageData, Node) {
         self.recv_queue.receive().await
     }
 
-    async fn send_content(link: &'static ActiveLink, tree: &'static Mutex<NoopRawMutex, Tree>, content: MessageContent, destination: Node) -> Result<(), MeshError>{
+    async fn send_content(
+        link: &'static ActiveLink,
+        tree: &'static Mutex<NoopRawMutex, Tree>,
+        content: MessageContent,
+        destination: Node,
+    ) -> Result<(), MeshError> {
         let msg = SendMessage::new(destination, content, None);
-        let next = tree.lock().await.next_hop(destination).map_err(|e| MeshError::TreeError(e))?;
-        Ok(link.send(msg.serialize().map_err(|e| MeshError::SerializationError(e))?, next).await)
+        let next = tree
+            .lock()
+            .await
+            .next_hop(destination)
+            .map_err(|e| MeshError::TreeError(e))?;
+        Ok(link
+            .send(
+                msg.serialize()
+                    .map_err(|e| MeshError::SerializationError(e))?,
+                next,
+            )
+            .await)
     }
 }
 
@@ -61,10 +85,10 @@ impl Mesh {
 async fn searcher_task(
     spawner: Spawner,
     tree: &'static Mutex<NoopRawMutex, Tree>,
-    link: &'static ActiveLink, 
+    link: &'static ActiveLink,
     organize_queue: &'static Channel<NoopRawMutex, ReceiveMessage, ORGANIZE_QUEUE_SIZE>,
 ) {
- loop {
+    loop {
         match run_search_round(spawner, tree, link, organize_queue).await {
             Ok(RoleDecision::Leader) => {
                 spawner.spawn(leader_task(spawner, tree, link, organize_queue));
@@ -74,8 +98,7 @@ async fn searcher_task(
                 spawner.spawn(follower_task(spawner, tree, link, organize_queue));
                 break;
             }
-            Ok(RoleDecision::Timeout) => {
-            }
+            Ok(RoleDecision::Timeout) => {}
             Err(e) => println!("{}", e),
         }
     }
@@ -132,8 +155,8 @@ async fn wait_for_invitation(
                     Some(node) => node,
                 };
                 tree.lock().await.upsert_edge(parent, new);
-                return RoleDecision::Follower
-            },
+                return RoleDecision::Follower;
+            }
             _ => {}
         }
     }
@@ -160,10 +183,7 @@ async fn leader_task(
     }
 }
 
-fn handle_leader_message(
-    news: &mut Vec<(Node, i32), MAX_NEWS>,
-    msg: ReceiveMessage,
-) {
+fn handle_leader_message(news: &mut Vec<(Node, i32), MAX_NEWS>, msg: ReceiveMessage) {
     if let MessageContent::Discovery = msg.data {
         if let Err((e, _)) = news.push((msg.final_source, msg.rssi)) {
             println!("{}", e);
@@ -202,18 +222,22 @@ async fn collect_remote_news(
 ) {
     let nodes = {
         let t = tree.lock().await;
-        t.into_iter().collect::<Vec<_, {tree::MAX_LEAFS}>>()
+        t.into_iter().collect::<Vec<_, { tree::MAX_LEAFS }>>()
     };
     for (node, parent) in nodes {
         Mesh::send_content(link, tree, MessageContent::RequestNews, node).await;
         loop {
             match select(
                 organize_queue.receive(),
-                Timer::after(Duration::from_millis(500))
-            ).await {
-                Either::First(response) => if !handle_news_response(all_news, node, response) {
-                    break;
-                },
+                Timer::after(Duration::from_millis(500)),
+            )
+            .await
+            {
+                Either::First(response) => {
+                    if !handle_news_response(all_news, node, response) {
+                        break;
+                    }
+                }
                 Either::Second(_) => break,
             }
         }
@@ -258,7 +282,7 @@ async fn send_topology_updates(
         }
         let nodes = {
             let t = tree.lock().await;
-            t.into_iter().collect::<Vec<_, {tree::MAX_LEAFS}>>()
+            t.into_iter().collect::<Vec<_, { tree::MAX_LEAFS }>>()
         };
         for (node, parent) in nodes {
             let content = MessageContent::UpsertEdge((Some(new_node), parent));
@@ -285,7 +309,7 @@ async fn send_initial_topology(
     Mesh::send_content(link, tree, self_content, new).await;
     let nodes = {
         let t = tree.lock().await;
-        t.into_iter().collect::<Vec<_, {tree::MAX_LEAFS}>>()
+        t.into_iter().collect::<Vec<_, { tree::MAX_LEAFS }>>()
     };
     for (node, parent) in nodes {
         let foreign_content = MessageContent::UpsertEdge((Some(node), parent));
@@ -294,21 +318,19 @@ async fn send_initial_topology(
 }
 
 #[embassy_executor::task]
-async  fn follower_task(
+async fn follower_task(
     spawner: Spawner,
     tree: &'static Mutex<NoopRawMutex, Tree>,
-    link: &'static ActiveLink, 
+    link: &'static ActiveLink,
     organize_queue: &'static Channel<NoopRawMutex, ReceiveMessage, ORGANIZE_QUEUE_SIZE>,
 ) {
     let mut news: Vec<(Node, i32), MAX_NEWS> = Vec::new();
     loop {
         let msg = organize_queue.receive().await;
         match msg.data {
-            MessageContent::Discovery => {
-                match news.push((msg.final_source, msg.rssi)) {
-                    Ok(_) => (),
-                    Err((n, r)) => println!("{}", n),
-                } 
+            MessageContent::Discovery => match news.push((msg.final_source, msg.rssi)) {
+                Ok(_) => (),
+                Err((n, r)) => println!("{}", n),
             },
             MessageContent::RequestNews => {
                 for new in news.iter() {
@@ -316,7 +338,7 @@ async  fn follower_task(
                     Mesh::send_content(link, tree, content, msg.final_source).await;
                 }
                 Mesh::send_content(link, tree, MessageContent::FinSendNew, msg.final_source).await;
-            },
+            }
             MessageContent::UpsertEdge((n, p)) => {
                 let parent = match p {
                     None => Some(msg.final_source),
@@ -331,7 +353,7 @@ async  fn follower_task(
             }
             MessageContent::RequestInitTopology(n) => {
                 send_initial_topology(n, tree, link).await;
-            },
+            }
             _ => (),
         }
     }
@@ -339,7 +361,7 @@ async  fn follower_task(
 
 #[embassy_executor::task]
 async fn dispatcher_task(
-    link: &'static ActiveLink, 
+    link: &'static ActiveLink,
     tree: &'static Mutex<NoopRawMutex, Tree>,
     recv_queue: &'static Channel<NoopRawMutex, (MessageData, Node), RECV_QUEUE_SIZE>,
     organize_queue: &'static Channel<NoopRawMutex, ReceiveMessage, ORGANIZE_QUEUE_SIZE>,
@@ -347,26 +369,41 @@ async fn dispatcher_task(
     loop {
         let data = link.receive().await;
         let result = (|| async {
-            let msg = ReceiveMessage::new(data.data, data.destination, data.source, data.rssi).map_err(|e| MeshError::ReceiveMessageError(e))?; 
-            if !msg.is_final_destination() && !matches!(MessageType::from(&msg.data), MessageType::Discovery) {
+            let msg = ReceiveMessage::new(data.data, data.destination, data.source, data.rssi)
+                .map_err(|e| MeshError::ReceiveMessageError(e))?;
+            if !msg.is_final_destination()
+                && !matches!(MessageType::from(&msg.data), MessageType::Discovery)
+            {
                 let send_msg: SendMessage = msg.into();
-                let next = tree.lock().await.next_hop(send_msg.final_destination).map_err(|e| MeshError::TreeError(e))?;
+                let next = tree
+                    .lock()
+                    .await
+                    .next_hop(send_msg.final_destination)
+                    .map_err(|e| MeshError::TreeError(e))?;
                 link.try_send(
-                    send_msg.serialize().map_err(|e| MeshError::SerializationError(e))?, 
+                    send_msg
+                        .serialize()
+                        .map_err(|e| MeshError::SerializationError(e))?,
                     next,
-                ).map_err(|e| MeshError::LinkError(e))?;
+                )
+                .map_err(|e| MeshError::LinkError(e))?;
                 return Ok(());
             }
             if msg.is_organization() {
-                organize_queue.try_send(msg).map_err(|e| MeshError::OrganizeQueueSendError(e))?;
+                organize_queue
+                    .try_send(msg)
+                    .map_err(|e| MeshError::OrganizeQueueSendError(e))?;
                 return Ok(());
             }
             match msg.data {
-                MessageContent::Application(d) => recv_queue.try_send((d, msg.final_source)).map_err(|e| MeshError::ReceiveQueueSendError(e))?,
+                MessageContent::Application(d) => recv_queue
+                    .try_send((d, msg.final_source))
+                    .map_err(|e| MeshError::ReceiveQueueSendError(e))?,
                 _ => (),
             }
             Ok::<_, MeshError>(())
-        })().await;
+        })()
+        .await;
         if let Err(e) = result {
             println!("{}", e);
         }
@@ -376,15 +413,24 @@ async fn dispatcher_task(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::logic::{link::{mock::MockLink, ActiveLink}, message};
+    use crate::logic::{
+        link::{ActiveLink, mock::MockLink},
+        message,
+    };
 
     fn setup_mesh(spawner: Spawner, link: ActiveLink) -> Mesh {
         let link = MockLink::new(Node::new([0, 0, 0, 0, 0, 1]));
         let tree = Mutex::new(Tree::new().unwrap());
         let recv_queue: Channel<NoopRawMutex, (MessageData, Node), 16> = Channel::new();
         let organize_queue: Channel<NoopRawMutex, message::ReceiveMessage, 16> = Channel::new();
-        let mesh = Mesh::new(spawner, Box::leak(Box::new(link)), Box::leak(Box::new(tree)), Box::leak(Box::new(recv_queue)), Box::leak(Box::new(organize_queue))).unwrap();
+        let mesh = Mesh::new(
+            spawner,
+            Box::leak(Box::new(link)),
+            Box::leak(Box::new(tree)),
+            Box::leak(Box::new(recv_queue)),
+            Box::leak(Box::new(organize_queue)),
+        )
+        .unwrap();
         mesh
     }
-
 }

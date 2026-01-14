@@ -5,7 +5,7 @@ use crate::logic::{
 };
 use core::fmt::{self, Display, Formatter};
 use core::{option::Option, result::Result};
-use heapless::{spsc::Queue, Vec};
+use heapless::{Vec, spsc::Queue};
 
 pub const MAX_LEAFS: usize = 32;
 const MAX_CHILD_LEAFS: usize = 8;
@@ -41,14 +41,19 @@ impl Tree {
 
     fn remove_node_helper(&self, address: Node, current_id: SlotId) -> Option<SlotId> {
         let mut current = self.leafs.get(current_id).ok()?.borrow_mut();
-        if let Some(pos) = current.get_nexts().iter().enumerate().find_map(|(idx, next_id)| {
-            let next = self.leafs.get(*next_id).ok()?.borrow();
-            match *next {
-                Leaf::Own { nexts: _ } => None, 
-                Leaf::Foreign { nexts: _, node } if node == address => Some(idx),
-                Leaf::Foreign { nexts: _, node: _ } => None,
-            }
-        }) {
+        if let Some(pos) = current
+            .get_nexts()
+            .iter()
+            .enumerate()
+            .find_map(|(idx, next_id)| {
+                let next = self.leafs.get(*next_id).ok()?.borrow();
+                match *next {
+                    Leaf::Own { nexts: _ } => None,
+                    Leaf::Foreign { nexts: _, node } if node == address => Some(idx),
+                    Leaf::Foreign { nexts: _, node: _ } => None,
+                }
+            })
+        {
             return Some(current.get_nexts_mut().remove(pos));
         }
         if let Some(res) = current
@@ -232,23 +237,23 @@ impl<'a> IntoIterator for &'a Tree {
         let mut queue = Queue::new();
         let _ = queue.enqueue((self.root_id, None));
 
-        TreeIter {
-            tree: self,
-            queue,
-        }
+        TreeIter { tree: self, queue }
     }
 }
 
 enum Leaf {
-    Own {nexts: Vec<SlotId, MAX_CHILD_LEAFS>},
-    Foreign {nexts: Vec<SlotId, MAX_CHILD_LEAFS>, node: Node},
+    Own {
+        nexts: Vec<SlotId, MAX_CHILD_LEAFS>,
+    },
+    Foreign {
+        nexts: Vec<SlotId, MAX_CHILD_LEAFS>,
+        node: Node,
+    },
 }
 
 impl Leaf {
     fn new_own() -> Self {
-        Self::Own {
-            nexts: Vec::new(),
-        }
+        Self::Own { nexts: Vec::new() }
     }
     fn new_foreign(node: Node) -> Self {
         Self::Foreign {
