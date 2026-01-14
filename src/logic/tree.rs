@@ -5,9 +5,9 @@ use crate::logic::{
 };
 use core::fmt::{self, Display, Formatter};
 use core::{option::Option, result::Result};
-use heapless::Vec;
+use heapless::{spsc::Queue, Vec};
 
-const MAX_LEAFS: usize = 32;
+pub const MAX_LEAFS: usize = 32;
 const MAX_CHILD_LEAFS: usize = 8;
 const MAX_PREFIX: usize = 32;
 
@@ -194,6 +194,47 @@ impl Display for Prefix {
             Prefix::Pipe => write!(f, "│  "),
             Prefix::Tee => write!(f, "├──"),
             Prefix::Ellbow => write!(f, "└──"),
+        }
+    }
+}
+
+pub struct TreeIter<'a> {
+    tree: &'a Tree,
+    queue: Queue<(SlotId, Option<Node>), MAX_LEAFS>,
+}
+
+impl<'a> Iterator for TreeIter<'a> {
+    type Item = (Node, Option<Node>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some((id, parent)) = self.queue.dequeue() {
+            let leaf = self.tree.leafs.get(id).ok()?.borrow();
+            let current_parent = match *leaf {
+                Leaf::Foreign { node, .. } => Some(node),
+                _ => parent,
+            };
+            for &child in leaf.get_nexts().iter().rev() {
+                let _ = self.queue.enqueue((child, current_parent));
+            }
+            if let Leaf::Foreign { node, .. } = *leaf {
+                return Some((node, parent));
+            }
+        }
+        None
+    }
+}
+
+impl<'a> IntoIterator for &'a Tree {
+    type Item = (Node, Option<Node>);
+    type IntoIter = TreeIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let mut queue = Queue::new();
+        let _ = queue.enqueue((self.root_id, None));
+
+        TreeIter {
+            tree: self,
+            queue,
         }
     }
 }

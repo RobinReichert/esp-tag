@@ -8,7 +8,8 @@ use core::fmt;
 
 use heapless::Vec;
 
-#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "std", derive(Hash))]
+#[derive(Eq, Copy, Clone, Debug)]
 pub struct Node {
     pub mac: [u8; 6],
 }

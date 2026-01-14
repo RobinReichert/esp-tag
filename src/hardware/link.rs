@@ -79,7 +79,8 @@ async fn recv_task(
         }
         let source = Node::new(received_data.info.src_address);
         let destination = Node::new(received_data.info.dst_address);
-        recv_queue.send(RecvData{data, source, destination}).await;
+        let rssi = received_data.info.rx_control.rssi;
+        recv_queue.send(RecvData{data, source, destination, rssi}).await;
     }
 
 }

@@ -17,8 +17,10 @@ pub enum MessageContent {
     Discovery,
     Invitation,
     RequestNews,
-    SendNew(Node),
+    SendNew((Node, i32)),
     FinSendNew,
+    UpsertEdge((Option<Node>, Option<Node>)),
+    RequestInitTopology(Node),
 }
 
 #[repr(u8)]
@@ -30,6 +32,8 @@ pub enum MessageType {
     RequestNews = 0x04,
     SendNew = 0x05,
     FinSendNew = 0x06,
+    UpsertEdge = 0x07,
+    RequestInitTopology = 0x08,
 }
 
 impl From<&MessageContent> for MessageType {
@@ -41,6 +45,8 @@ impl From<&MessageContent> for MessageType {
             MessageContent::RequestNews => MessageType::RequestNews,
             MessageContent::SendNew(_) => MessageType::SendNew,
             MessageContent::FinSendNew => MessageType::FinSendNew,
+            MessageContent::UpsertEdge(_) => MessageType::UpsertEdge,
+            MessageContent::RequestInitTopology(_) => MessageType::RequestInitTopology,
         }
     }
 }
@@ -56,6 +62,8 @@ impl TryFrom<u8> for MessageType {
             0x04 => Ok(MessageType::RequestNews),
             0x05 => Ok(MessageType::SendNew),
             0x06 => Ok(MessageType::FinSendNew),
+            0x07 => Ok(MessageType::UpsertEdge),
+            0x08 => Ok(MessageType::RequestInitTopology),
             v => Err(MessageTypeError::InvalidMessageType(v)),
         }
     }
@@ -74,10 +82,18 @@ impl WireCodec<MESSAGE_SIZE> for MessageContent {
             Self::Discovery => {},
             Self::Invitation => {},
             Self::RequestNews => {},
-            Self::SendNew(n) => {
+            Self::SendNew((n, rssi)) => {
                 n.encode(out).map_err(|_| CodecError::CodecError)?;
+                out.extend_from_slice(&rssi.to_le_bytes()).map_err(|e| CodecError::BufferCapacityError(e))?;
             },
             Self::FinSendNew => {},
+            Self::UpsertEdge((n, p)) => {
+                n.encode(out).map_err(|_| CodecError::CodecError)?;
+                p.encode(out).map_err(|_| CodecError::CodecError)?;
+            }
+            Self::RequestInitTopology(n) => {
+                n.encode(out).map_err(|_| CodecError::CodecError)?;
+            }
         }
         Ok(())
     }
@@ -97,9 +113,20 @@ impl WireCodec<MESSAGE_SIZE> for MessageContent {
             MessageType::RequestNews => Ok(MessageContent::RequestNews),
             MessageType::SendNew => {
                 let n = Node::decode(cursor).map_err(|_| CodecError:: CodecError)?;
-                Ok(MessageContent::SendNew(n))
+                let rssi_bytes = cursor.take(4).map_err(|e| CodecError::CursorReadError(e))?;
+                let rssi = i32::from_le_bytes(rssi_bytes.try_into().map_err(|_| CodecError::CodecError)?);
+                Ok(MessageContent::SendNew((n, rssi)))
             },
             MessageType::FinSendNew => Ok(MessageContent::FinSendNew),
+            MessageType::UpsertEdge => {
+                let n = Option::<Node>::decode(cursor).map_err(|_| CodecError:: CodecError)?;
+                let p = Option::<Node>::decode(cursor).map_err(|_| CodecError:: CodecError)?;
+                Ok(MessageContent::UpsertEdge((n, p)))
+            }
+            MessageType::RequestInitTopology => {
+                let n = Node::decode(cursor).map_err(|_| CodecError:: CodecError)?;
+                Ok(MessageContent::RequestInitTopology(n))
+            }
         }
     }
 }
@@ -140,6 +167,7 @@ pub struct ReceiveMessage {
     pub destination: Node,
     pub source: Node,
     pub final_source: Node,
+    pub rssi: i32,
 }
 
 impl ReceiveMessage {
@@ -147,6 +175,7 @@ impl ReceiveMessage {
         payload: MessageData,
         destination: Node,
         source: Node,
+        rssi: i32,
     ) -> Result<Self, ReceiveMessageError> {
         let mut cursor = Cursor::new(&payload);
         let data = MessageContent::decode(&mut cursor)
@@ -164,6 +193,7 @@ impl ReceiveMessage {
             source: source,
             final_destination,
             final_source,
+            rssi,
         })
     }
 
@@ -174,6 +204,12 @@ impl ReceiveMessage {
     pub fn is_organization(&self) -> bool {
         match MessageType::from(&self.data) {
             MessageType::Discovery => true,
+            MessageType::SendNew => true,
+            MessageType::Invitation => true,
+            MessageType::FinSendNew => true,
+            MessageType::RequestNews => true,
+            MessageType::UpsertEdge => true,
+            MessageType::RequestInitTopology => true,
             _ => false,
         }
     }
@@ -215,7 +251,7 @@ mod tests {
 
         let serialized = unwrap_print!(send_msg.serialize());
 
-        let receive_msg = unwrap_print!(ReceiveMessage::new(serialized, destination, source));
+        let receive_msg = unwrap_print!(ReceiveMessage::new(serialized, destination, source, 0));
 
         assert_eq!(MessageType::from(&data), MessageType::from(&receive_msg.data));
         assert_eq!(final_destination, receive_msg.final_destination);
@@ -230,7 +266,7 @@ mod tests {
         let tmpl_msg = SendMessage::new(final_destination.clone(), data.clone(), None);
 
         let serialized = unwrap_print!(tmpl_msg.serialize());
-        let receive_msg = unwrap_print!(ReceiveMessage::new(serialized, destination, source));
+        let receive_msg = unwrap_print!(ReceiveMessage::new(serialized, destination, source, 0));
         let send_msg: SendMessage = receive_msg.into();
 
         assert_eq!(MessageType::from(&data), MessageType::from(&send_msg.data));
