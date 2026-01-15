@@ -5,30 +5,24 @@ use crate::logic::{
     node::Node,
 };
 use core::fmt;
-use embassy_executor::SpawnError;
-use embassy_sync::channel::{TryReceiveError, TrySendError};
 use heapless::CapacityError;
 
 #[derive(Debug)]
 pub enum LinkError {
-    QueueFullError(TrySendError<SendData>),
-    QueueEmptyError(TryReceiveError),
+    QueueFullError(),
+    QueueEmptyError(),
     MockError,
 }
 
 impl fmt::Display for LinkError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::QueueFullError(e) => write!(
+            Self::QueueFullError() => write!(
                 f,
-                "Failed to push new message since message queue was full:\n{:?}",
-                e
-            ),
-            Self::QueueEmptyError(e) => write!(
+                "Failed to push new message since message queue was full:\n"),
+            Self::QueueEmptyError() => write!(
                 f,
-                "Failed to receive new message since message queue was empty:\n{:?}",
-                e
-            ),
+                "Failed to receive new message since message queue was empty:\n"),
             Self::MockError => write!(f, "Nothing failed this is just a test"),
         }
     }
@@ -36,32 +30,30 @@ impl fmt::Display for LinkError {
 
 #[derive(Debug)]
 pub enum MeshError {
-    SpawnError(SpawnError),
     SerializationError(SendMessageError),
     TreeError(TreeError),
     LinkError(LinkError),
     ReceiveMessageError(ReceiveMessageError),
-    OrganizeQueueSendError(TrySendError<ReceiveMessage>),
-    OrganizeQueueRecvError(TryReceiveError),
-    ReceiveQueueSendError(TrySendError<(MessageData, Node)>),
+    OrganizeQueueSendError(),
+    OrganizeQueueRecvError(),
+    ReceiveQueueSendError(),
 }
 
 impl fmt::Display for MeshError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SpawnError(e) => write!(f, "Failed to spawn task:\n{}", e),
             Self::SerializationError(e) => write!(f, "Failed to serialize data:\n{}", e),
             Self::TreeError(e) => write!(f, "Failed to get next hop:\n{}", e),
             Self::LinkError(e) => write!(f, "Link produced an error:\n{}", e),
             Self::ReceiveMessageError(e) => write!(f, "Failed to create ReceiveMessage:\n{}", e),
-            Self::OrganizeQueueSendError(e) => {
-                write!(f, "Failed to send receive message to channel:\n{:?}", e)
+            Self::OrganizeQueueSendError() => {
+                write!(f, "Failed to send receive message to channel:\n")
             }
-            Self::OrganizeQueueRecvError(e) => {
-                write!(f, "Failed to receive message from channel:\n{:?}", e)
+            Self::OrganizeQueueRecvError() => {
+                write!(f, "Failed to receive message from channel:\n")
             }
-            Self::ReceiveQueueSendError(e) => {
-                write!(f, "Failed to send receive message to channel:\n{:?}", e)
+            Self::ReceiveQueueSendError() => {
+                write!(f, "Failed to send receive message to channel:\n")
             }
         }
     }

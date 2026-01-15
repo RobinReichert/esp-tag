@@ -51,7 +51,7 @@ impl<'a> Link<'a> for ESPNowLink {
         let send_data = SendData { data, destination };
         self.send_queue
             .try_send(send_data)
-            .map_err(|e| LinkError::QueueFullError(e))
+            .map_err(|_| LinkError::QueueFullError())
     }
 
     fn receive(&'a self) -> impl Future<Output = RecvData> {
@@ -61,7 +61,7 @@ impl<'a> Link<'a> for ESPNowLink {
     fn try_receive(&self) -> Result<RecvData, crate::logic::error::LinkError> {
         self.recv_queue
             .try_receive()
-            .map_err(|e| LinkError::QueueEmptyError(e))
+            .map_err(|_| LinkError::QueueEmptyError())
     }
 }
 
