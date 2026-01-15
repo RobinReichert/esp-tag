@@ -254,6 +254,24 @@ mod tests {
     }
 
     #[test]
+    fn test_upsert_message_type_encode_decode() {
+        let msg_content = MessageContent::UpsertEdge((None, Some(BROADCAST_NODE)));
+        let mut out = MessageData::new();
+        unwrap_print!(msg_content.encode(&mut out));
+
+        let mut cursor = Cursor::new(&out);
+        let decoded = unwrap_print!(MessageContent::decode(&mut cursor));
+        assert_eq!(MessageType::from(&decoded), MessageType::UpsertEdge);
+        match decoded {
+            MessageContent::UpsertEdge((n, p)) => {
+                assert_eq!(n, None);
+                assert_eq!(p, Some(BROADCAST_NODE));
+            }
+            _ => panic!("decoded message is not UpsertEdge"),
+        }
+    }
+
+    #[test]
     fn test_send_message_to_receive_message() {
         let final_destination = Node::new([10, 20, 30, 40, 50, 60]);
         let destination = Node::new([10, 20, 30, 40, 50, 60]);

@@ -89,10 +89,12 @@ async fn searcher_task(
     loop {
         match run_search_round(spawner, tree, link, organize_queue).await {
             Ok(RoleDecision::Leader) => {
+                println!("leader");
                 asynchronous::spawn(&spawner, leader_task(spawner, tree, link, organize_queue));
                 break;
             }
             Ok(RoleDecision::Follower) => {
+                println!("follower");
                 asynchronous::spawn(&spawner, follower_task(spawner, tree, link, organize_queue));
                 break;
             }
@@ -114,15 +116,16 @@ async fn run_search_round(
     link: &'static ActiveLink,
     organize_queue: &'static asynchronous::Channel<ReceiveMessage, ORGANIZE_QUEUE_SIZE>,
 ) -> Result<RoleDecision, MeshError> {
-    send_discovery(link).await?;
-
     match asynchronous::select(
         asynchronous::after(asynchronous::Duration::from_secs(1)),
         wait_for_invitation(organize_queue, tree),
     )
     .await
     {
-        asynchronous::Either::First(_) => Ok(RoleDecision::Timeout),
+        asynchronous::Either::First(_) => {
+            send_discovery(link).await?;
+            Ok(RoleDecision::Timeout)
+        },
         asynchronous::Either::Second(role) => Ok(role),
     }
 }
@@ -141,7 +144,9 @@ async fn wait_for_invitation(
     loop {
         let recv_msg = organize_queue.my_recv().await;
         match recv_msg.data {
-            MessageContent::Discovery => return RoleDecision::Leader,
+            MessageContent::Discovery => {
+                return RoleDecision::Leader;
+            },
             MessageContent::UpsertEdge((n, p)) => {
                 let parent = match p {
                     None => Some(recv_msg.final_source),
@@ -152,7 +157,11 @@ async fn wait_for_invitation(
                     None => recv_msg.final_source,
                     Some(node) => node,
                 };
-                tree.lock().await.upsert_edge(parent, new);
+                match tree.lock().await.upsert_edge(parent, new) {
+                    Err(e) => println!("{}", e),
+                    _ => (),
+                }
+                print!("{}", tree.lock().await);
                 return RoleDecision::Follower;
             }
             _ => {}
@@ -168,7 +177,7 @@ async fn leader_task(
     organize_queue: &'static asynchronous::Channel<ReceiveMessage, ORGANIZE_QUEUE_SIZE>,
 ) {
     let mut news: Vec<(Node, i32), MAX_NEWS> = Vec::new();
-    let mut ticker = asynchronous::Ticker::every(asynchronous::Duration::from_secs(5));
+    let mut ticker = asynchronous::Ticker::every(asynchronous::Duration::from_secs(3));
 
     loop {
         match asynchronous::select(organize_queue.my_recv(), ticker.next()).await {
@@ -274,10 +283,6 @@ async fn send_topology_updates(
     link: &'static ActiveLink,
 ) {
     for (new_node, (parent, _)) in all_news {
-        if let Err(e) = tree.lock().await.upsert_edge(None, new_node) {
-            println!("{:?}", e);
-            continue;
-        }
         let nodes = {
             let t = tree.lock().await;
             t.into_iter().collect::<Vec<_, { tree::MAX_LEAFS }>>()
@@ -286,9 +291,14 @@ async fn send_topology_updates(
             let content = MessageContent::UpsertEdge((Some(new_node), parent));
             Mesh::send_content(link, tree, content, node).await;
         }
+        if let Err(e) = tree.lock().await.upsert_edge(None, new_node) {
+            println!("{:?}", e);
+            continue;
+        }
+        print!("{}", tree.lock().await);
         match parent {
             None => {
-                send_initial_topology(new_node, tree, link);
+                send_initial_topology(new_node, tree, link).await;
             }
             Some(p) => {
                 let content = MessageContent::RequestInitTopology(new_node);
@@ -410,8 +420,10 @@ async fn dispatcher_task(
 
 #[cfg(test)]
 mod tests {
+    use core::time::Duration;
+
     use super::*;
-    use tokio::task::LocalSet;
+    use tokio::{task::LocalSet, time::sleep};
     use crate::logic::{
         link::{ActiveLink, mock::MockLink},
         message,
@@ -440,5 +452,52 @@ mod tests {
             let _mesh = setup_mesh((), link);
         }).await;
     }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn mesh_send_to_self_returns_error() {
+        let local = LocalSet::new();
+        let self_node = Node::new([0, 0, 0, 0, 0, 1]);
+        let link = MockLink::new(self_node);
+        local
+            .run_until(async {
+                let mesh = setup_mesh((), link);
+                let payload = MessageData::from([1, 2, 3]);
+                let result = mesh.send(payload, self_node).await;
+                assert!(result.is_err(), "sending to self must error");
+            })
+        .await;
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn mesh_send_receive_between_two_nodes() {
+        let local = LocalSet::new();
+
+        let a = Node::new([0, 0, 0, 0, 0, 1]);
+        let b = Node::new([0, 0, 0, 0, 0, 2]);
+        let mut link_a = MockLink::new(a);
+        let mut link_b = MockLink::new(b);
+        link_a.connect(&link_b);
+        link_b.connect(&link_a);
+
+        local
+            .run_until(async {
+                let mesh_a = setup_mesh((), link_a);
+                sleep(Duration::from_millis(500)).await;
+                let mesh_b = setup_mesh((), link_b);
+
+                sleep(Duration::from_secs(5)).await;
+
+                let payload = MessageData::from([42]);
+                mesh_a.send(payload.clone(), b).await.unwrap();
+
+                sleep(Duration::from_secs(1)).await;
+
+            let (recv, src) = mesh_b.receive().await;
+            assert_eq!(recv, payload);
+            assert_eq!(src, a);
+        })
+        .await;
+}
+
 
 }

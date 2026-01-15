@@ -29,6 +29,8 @@ pub trait Link<'a> {
 
 #[cfg(feature = "std")]
 pub mod mock {
+    use crate::logic::message::BROADCAST_NODE;
+
     use super::*;
     use std::collections::hash_map::HashMap;
     use tokio::sync::Mutex;
@@ -68,31 +70,57 @@ pub mod mock {
     impl<'a> Link<'a> for MockLink {
         fn send(&'a self, data: MessageData, destination: Node) -> impl Future<Output = ()> {
             async move {
-                if let Some(sender) = self.foreign_senders.get(&destination) {
-                    let message = MockMessage {
-                        data,
-                        source: self.node,
-                        destination,
-                        rssi: 255,
-                    };
-                    sender.send(message).await.unwrap();
-                } else {
-                    println!("not connected to {}", destination);
+                let message = |destination| MockMessage {
+                    data: data.clone(),
+                    source: self.node,
+                    destination,
+                    rssi: 255,
+                };
+                if destination == BROADCAST_NODE {
+                    for (node, sender) in self.foreign_senders.iter() {
+                        if let Err(e) = sender.send(message(*node)).await {
+                            println!("failed to send broadcast to {}: {:?}", node, e);
+                        }
+                    }
+                    return;
+                }
+                match self.foreign_senders.get(&destination) {
+                    Some(sender) => {
+                        if let Err(e) = sender.send(message(destination)).await {
+                            println!("failed to send to {}: {:?}", destination, e);
+                        }
+                    }
+                    None => {
+                        println!("not connected to {}", destination);
+                    }
                 }
             }
         }
 
         fn try_send(&self, data: MessageData, destination: Node) -> Result<(), LinkError> {
-            if let Some(sender) = self.foreign_senders.get(&destination) {
-                let message = MockMessage {
-                    data,
-                    source: self.node,
-                    destination,
-                    rssi: 255,
-                };
-                sender.try_send(message).map_err(|_| LinkError::MockError)?;
-            } else {
-                println!("not connected to {}", destination);
+            let message = |destination| MockMessage {
+                data: data.clone(),
+                source: self.node,
+                destination,
+                rssi: 255,
+            };
+            if destination == BROADCAST_NODE {
+                for (node, sender) in self.foreign_senders.iter() {
+                    if let Err(e) = sender.try_send(message(*node)).map_err(|_| LinkError::MockError) {
+                        println!("failed to send broadcast to {}: {:?}", node, e);
+                    }
+                }
+                return Ok(());
+            }
+            match self.foreign_senders.get(&destination) {
+                Some(sender) => {
+                    if let Err(e) = sender.try_send(message(destination)).map_err(|_| LinkError::MockError) {
+                        println!("failed to send to {}: {:?}", destination, e);
+                    }
+                }
+                None => {
+                    println!("not connected to {}", destination);
+                }
             }
             Ok(())
         }

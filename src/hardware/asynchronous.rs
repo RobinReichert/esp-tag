@@ -1,4 +1,3 @@
-#![cfg(feature = "hardware")]
 use embassy_executor::SpawnToken;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 pub use embassy_time::{Duration, Ticker};
