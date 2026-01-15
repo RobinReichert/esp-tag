@@ -89,12 +89,10 @@ async fn searcher_task(
     loop {
         match run_search_round(spawner, tree, link, organize_queue).await {
             Ok(RoleDecision::Leader) => {
-                println!("leader");
                 asynchronous::spawn(&spawner, leader_task(spawner, tree, link, organize_queue));
                 break;
             }
             Ok(RoleDecision::Follower) => {
-                println!("follower");
                 asynchronous::spawn(&spawner, follower_task(spawner, tree, link, organize_queue));
                 break;
             }
@@ -161,7 +159,6 @@ async fn wait_for_invitation(
                     Err(e) => println!("{}", e),
                     _ => (),
                 }
-                print!("{}", tree.lock().await);
                 return RoleDecision::Follower;
             }
             _ => {}
@@ -295,7 +292,6 @@ async fn send_topology_updates(
             println!("{:?}", e);
             continue;
         }
-        print!("{}", tree.lock().await);
         match parent {
             None => {
                 send_initial_topology(new_node, tree, link).await;
