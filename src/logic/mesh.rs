@@ -39,7 +39,10 @@ impl Mesh {
         organize_queue: &'static asynchronous::Channel<ReceiveMessage, ORGANIZE_QUEUE_SIZE>,
     ) -> Result<Self, MeshError> {
         asynchronous::spawn(&spawner, searcher_task(spawner, tree, link, organize_queue));
-        asynchronous::spawn(&spawner, dispatcher_task(link, tree, recv_queue, organize_queue));
+        asynchronous::spawn(
+            &spawner,
+            dispatcher_task(link, tree, recv_queue, organize_queue),
+        );
         Ok(Self {
             link,
             tree,
@@ -123,7 +126,7 @@ async fn run_search_round(
         asynchronous::Either::First(_) => {
             send_discovery(link).await?;
             Ok(RoleDecision::Timeout)
-        },
+        }
         asynchronous::Either::Second(role) => Ok(role),
     }
 }
@@ -144,7 +147,7 @@ async fn wait_for_invitation(
         match recv_msg.data {
             MessageContent::Discovery => {
                 return RoleDecision::Leader;
-            },
+            }
             MessageContent::UpsertEdge((n, p)) => {
                 let parent = match p {
                     None => Some(recv_msg.final_source),
@@ -376,7 +379,7 @@ async fn dispatcher_task(
             let msg = ReceiveMessage::new(data.data, data.destination, data.source, data.rssi)
                 .map_err(|e| MeshError::ReceiveMessageError(e))?;
             if !msg.is_final_destination()
-            && !matches!(MessageType::from(&msg.data), MessageType::Discovery)
+                && !matches!(MessageType::from(&msg.data), MessageType::Discovery)
             {
                 let send_msg: SendMessage = msg.into();
                 let next = tree
@@ -390,7 +393,7 @@ async fn dispatcher_task(
                         .map_err(|e| MeshError::SerializationError(e))?,
                     next,
                 )
-                    .map_err(|e| MeshError::LinkError(e))?;
+                .map_err(|e| MeshError::LinkError(e))?;
                 return Ok(());
             }
             if msg.is_organization() {
@@ -419,16 +422,18 @@ mod tests {
     use core::time::Duration;
 
     use super::*;
-    use tokio::{task::LocalSet, time::sleep};
     use crate::logic::{
         link::{ActiveLink, mock::MockLink},
         message,
     };
+    use tokio::{task::LocalSet, time::sleep};
 
     fn setup_mesh(spawner: asynchronous::Spawner, link: ActiveLink) -> Mesh {
         let tree = asynchronous::Mutex::new(Tree::new().unwrap());
-        let recv_queue: asynchronous::Channel<(MessageData, Node), 16> = asynchronous::Channel::new();
-        let organize_queue: asynchronous::Channel<message::ReceiveMessage, 16> = asynchronous::Channel::new();
+        let recv_queue: asynchronous::Channel<(MessageData, Node), 16> =
+            asynchronous::Channel::new();
+        let organize_queue: asynchronous::Channel<message::ReceiveMessage, 16> =
+            asynchronous::Channel::new();
         let mesh = Mesh::new(
             spawner,
             Box::leak(Box::new(link)),
@@ -444,9 +449,11 @@ mod tests {
     async fn mesh_creation_test() {
         let local = LocalSet::new();
         let link = MockLink::new(Node::new([0, 0, 0, 0, 0, 1]));
-        local.run_until(async {
-            let _mesh = setup_mesh((), link);
-        }).await;
+        local
+            .run_until(async {
+                let _mesh = setup_mesh((), link);
+            })
+            .await;
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -461,7 +468,7 @@ mod tests {
                 let result = mesh.send(payload, self_node).await;
                 assert!(result.is_err(), "sending to self must error");
             })
-        .await;
+            .await;
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -488,12 +495,10 @@ mod tests {
 
                 sleep(Duration::from_secs(1)).await;
 
-            let (recv, src) = mesh_b.receive().await;
-            assert_eq!(recv, payload);
-            assert_eq!(src, a);
-        })
-        .await;
-}
-
-
+                let (recv, src) = mesh_b.receive().await;
+                assert_eq!(recv, payload);
+                assert_eq!(src, a);
+            })
+            .await;
+    }
 }

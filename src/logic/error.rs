@@ -19,10 +19,12 @@ impl fmt::Display for LinkError {
         match self {
             Self::QueueFullError() => write!(
                 f,
-                "Failed to push new message since message queue was full:\n"),
+                "Failed to push new message since message queue was full:\n"
+            ),
             Self::QueueEmptyError() => write!(
                 f,
-                "Failed to receive new message since message queue was empty:\n"),
+                "Failed to receive new message since message queue was empty:\n"
+            ),
             Self::MockError => write!(f, "Nothing failed this is just a test"),
         }
     }

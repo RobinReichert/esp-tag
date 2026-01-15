@@ -106,7 +106,10 @@ pub mod mock {
             };
             if destination == BROADCAST_NODE {
                 for (node, sender) in self.foreign_senders.iter() {
-                    if let Err(e) = sender.try_send(message(*node)).map_err(|_| LinkError::MockError) {
+                    if let Err(e) = sender
+                        .try_send(message(*node))
+                        .map_err(|_| LinkError::MockError)
+                    {
                         println!("failed to send broadcast to {}: {:?}", node, e);
                     }
                 }
@@ -114,7 +117,10 @@ pub mod mock {
             }
             match self.foreign_senders.get(&destination) {
                 Some(sender) => {
-                    if let Err(e) = sender.try_send(message(destination)).map_err(|_| LinkError::MockError) {
+                    if let Err(e) = sender
+                        .try_send(message(destination))
+                        .map_err(|_| LinkError::MockError)
+                    {
                         println!("failed to send to {}: {:?}", destination, e);
                     }
                 }

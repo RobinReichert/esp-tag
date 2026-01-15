@@ -1,6 +1,6 @@
 #![cfg(feature = "std")]
-use tokio::sync::{futures, mpsc};
 pub use std::time::Duration;
+use tokio::sync::{futures, mpsc};
 
 pub type Spawner = ();
 
@@ -18,7 +18,10 @@ pub struct StdChannel<T, const N: usize> {
 impl<T, const N: usize> StdChannel<T, N> {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel(N);
-        Self { tx, rx: Mutex::new(rx) }
+        Self {
+            tx,
+            rx: Mutex::new(rx),
+        }
     }
 
     pub fn my_try_send(&self, v: T) -> Result<(), ()> {
@@ -38,7 +41,7 @@ pub enum Either<L, R> {
 }
 
 pub async fn select<A, B>(a: A, b: B) -> Either<A::Output, B::Output>
-    where
+where
     A: Future,
     B: Future,
 {
@@ -67,4 +70,3 @@ impl Ticker {
         self.interval.tick().await;
     }
 }
-
