@@ -1,5 +1,5 @@
 <p align="center">
-  <img src=".github/logo.svg" width="150" alt="ESP32 Laser Tag Logo" />
+  <img src=".github/logo.svg" width="300" alt="ESP32 Laser Tag Logo" />
 </p>
 
 An open-source laser tag system built on the ESP32c3
