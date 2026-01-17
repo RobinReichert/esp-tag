@@ -8,20 +8,19 @@ use core::fmt;
 
 use heapless::Vec;
 
-#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "std", derive(Hash))]
+#[derive(Eq, Copy, Clone, Debug)]
 pub struct Node {
     pub mac: [u8; 6],
 }
 
 impl Node {
-    pub fn new(mac: [u8; 6]) -> Self {
+    pub const fn new(mac: [u8; 6]) -> Self {
         return Node { mac };
     }
 }
 
 impl WireCodec<MESSAGE_SIZE> for Node {
-    const SIZE: usize = 6;
-
     fn encode(&self, out: &mut Vec<u8, MESSAGE_SIZE>) -> Result<(), CodecError> {
         out.extend_from_slice(&self.mac)
             .map_err(|e| CodecError::BufferCapacityError(e))
@@ -58,7 +57,6 @@ mod tests {
     use crate::{logic::message::MessageData, unwrap_print};
 
     use super::*;
-    use heapless::Vec;
 
     #[test]
     fn test_node_encode_decode() {

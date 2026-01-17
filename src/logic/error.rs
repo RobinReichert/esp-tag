@@ -1,12 +1,72 @@
-use crate::logic::arena::SlotId;
+use crate::logic::{
+    arena::SlotId,
+    link::SendData,
+    message::{MessageData, ReceiveMessage},
+    node::Node,
+};
 use core::fmt;
 use heapless::CapacityError;
+
+#[derive(Debug)]
+pub enum LinkError {
+    QueueFullError(),
+    QueueEmptyError(),
+    MockError,
+}
+
+impl fmt::Display for LinkError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::QueueFullError() => write!(
+                f,
+                "Failed to push new message since message queue was full:\n"
+            ),
+            Self::QueueEmptyError() => write!(
+                f,
+                "Failed to receive new message since message queue was empty:\n"
+            ),
+            Self::MockError => write!(f, "Nothing failed this is just a test"),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum MeshError {
+    SerializationError(SendMessageError),
+    TreeError(TreeError),
+    LinkError(LinkError),
+    ReceiveMessageError(ReceiveMessageError),
+    OrganizeQueueSendError(),
+    OrganizeQueueRecvError(),
+    ReceiveQueueSendError(),
+}
+
+impl fmt::Display for MeshError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SerializationError(e) => write!(f, "Failed to serialize data:\n{}", e),
+            Self::TreeError(e) => write!(f, "Failed to get next hop:\n{}", e),
+            Self::LinkError(e) => write!(f, "Link produced an error:\n{}", e),
+            Self::ReceiveMessageError(e) => write!(f, "Failed to create ReceiveMessage:\n{}", e),
+            Self::OrganizeQueueSendError() => {
+                write!(f, "Failed to send receive message to channel:\n")
+            }
+            Self::OrganizeQueueRecvError() => {
+                write!(f, "Failed to receive message from channel:\n")
+            }
+            Self::ReceiveQueueSendError() => {
+                write!(f, "Failed to send receive message to channel:\n")
+            }
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum TreeError {
     LeafAllocationError,
     NodeNotFoundError,
     LeafNotFoundError(ArenaError),
+    RootIsDestinationError,
 }
 
 impl fmt::Display for TreeError {
@@ -15,6 +75,7 @@ impl fmt::Display for TreeError {
             Self::LeafAllocationError => write!(f, "Failed to allocate Leaf"),
             Self::NodeNotFoundError => write!(f, "Could not find Node"),
             Self::LeafNotFoundError(e) => write!(f, "Could not find Leaf:\n{}", e),
+            Self::RootIsDestinationError => write!(f, "The root of this tree is the destination"),
         }
     }
 }
@@ -53,6 +114,8 @@ pub enum CodecError {
     CursorReadError(CursorError),
     BufferCapacityError(CapacityError),
     BufferOverflowError(u8),
+    InvalidOptionFlagError(u8),
+    CodecError,
 }
 
 impl fmt::Display for CodecError {
@@ -66,6 +129,8 @@ impl fmt::Display for CodecError {
             Self::BufferOverflowError(e) => {
                 write!(f, "Buffer is full; cannot push more bytes:\n{}", e)
             }
+            Self::InvalidOptionFlagError(e) => write!(f, "Flag {} is not supported for option", e),
+            Self::CodecError => write!(f, "Failed to encode component:\n"),
         }
     }
 }
@@ -87,6 +152,7 @@ impl fmt::Display for MessageTypeError {
 pub enum SendMessageError {
     MessageTypeEncodeError(CodecError),
     FinalDestinationEncodeError(CodecError),
+    FinalSourceEncodeError(CodecError),
     MessageTooLargeError(CapacityError),
 }
 
@@ -96,6 +162,9 @@ impl fmt::Display for SendMessageError {
             Self::MessageTypeEncodeError(e) => write!(f, "Failed to encode MessageType:\n{}", e),
             Self::FinalDestinationEncodeError(e) => {
                 write!(f, "Failed to encode final destination:\n{}", e)
+            }
+            Self::FinalSourceEncodeError(e) => {
+                write!(f, "Failed to encode final source:\n{}", e)
             }
             Self::MessageTooLargeError(e) => {
                 write!(f, "Message size exceeds buffer capacity:\n{}", e)
@@ -108,6 +177,7 @@ impl fmt::Display for SendMessageError {
 pub enum ReceiveMessageError {
     MessageTypeDecodeError(CodecError),
     FinalDestinationDecodeError(CodecError),
+    FinalSourceDecodeError(CodecError),
     BufferOverflowError(CapacityError),
 }
 
@@ -117,6 +187,9 @@ impl fmt::Display for ReceiveMessageError {
             Self::MessageTypeDecodeError(e) => write!(f, "Failed to decode message type:\n{}", e),
             Self::FinalDestinationDecodeError(e) => {
                 write!(f, "Failed to decode final destination:\n{}", e)
+            }
+            Self::FinalSourceDecodeError(e) => {
+                write!(f, "Failed to decode final source:\n{}", e)
             }
             Self::BufferOverflowError(e) => {
                 write!(f, "Failed to extend data from cursor buffer:\n{}", e)
