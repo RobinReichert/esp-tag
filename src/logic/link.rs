@@ -37,7 +37,7 @@ pub mod mock {
     use tokio::sync::mpsc::{Receiver, Sender, channel};
 
     pub struct MockLink {
-        foreign_senders: HashMap<Node, Sender<MockMessage>>,
+        foreign_senders: Mutex<HashMap<Node, Sender<MockMessage>>>,
         receiver: Mutex<Receiver<MockMessage>>,
         sender: Sender<MockMessage>,
         node: Node,
@@ -52,7 +52,8 @@ pub mod mock {
 
     impl MockLink {
         pub fn new(node: Node) -> Self {
-            let foreign_senders: HashMap<Node, Sender<MockMessage>> = HashMap::new();
+            let foreign_senders: Mutex<HashMap<Node, Sender<MockMessage>>> =
+                Mutex::new(HashMap::new());
             let (sender, receiver) = channel(32);
             return MockLink {
                 foreign_senders,
@@ -62,8 +63,11 @@ pub mod mock {
             };
         }
 
-        pub fn connect(&mut self, link: &MockLink) {
-            self.foreign_senders.insert(link.node, link.sender.clone());
+        pub async fn connect(&self, link: &MockLink) {
+            self.foreign_senders
+                .lock()
+                .await
+                .insert(link.node, link.sender.clone());
         }
     }
 
@@ -77,14 +81,14 @@ pub mod mock {
                     rssi: 255,
                 };
                 if destination == BROADCAST_NODE {
-                    for (node, sender) in self.foreign_senders.iter() {
+                    for (node, sender) in self.foreign_senders.lock().await.iter() {
                         if let Err(e) = sender.send(message(*node)).await {
                             println!("failed to send broadcast to {}: {:?}", node, e);
                         }
                     }
                     return;
                 }
-                match self.foreign_senders.get(&destination) {
+                match self.foreign_senders.lock().await.get(&destination) {
                     Some(sender) => {
                         if let Err(e) = sender.send(message(destination)).await {
                             println!("failed to send to {}: {:?}", destination, e);
@@ -105,7 +109,12 @@ pub mod mock {
                 rssi: 255,
             };
             if destination == BROADCAST_NODE {
-                for (node, sender) in self.foreign_senders.iter() {
+                for (node, sender) in self
+                    .foreign_senders
+                    .try_lock()
+                    .map_err(|_| LinkError::MockError)?
+                    .iter()
+                {
                     if let Err(e) = sender
                         .try_send(message(*node))
                         .map_err(|_| LinkError::MockError)
@@ -115,7 +124,12 @@ pub mod mock {
                 }
                 return Ok(());
             }
-            match self.foreign_senders.get(&destination) {
+            match self
+                .foreign_senders
+                .try_lock()
+                .map_err(|_| LinkError::MockError)?
+                .get(&destination)
+            {
                 Some(sender) => {
                     if let Err(e) = sender
                         .try_send(message(destination))

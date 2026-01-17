@@ -92,10 +92,12 @@ async fn searcher_task(
     loop {
         match run_search_round(spawner, tree, link, organize_queue).await {
             Ok(RoleDecision::Leader) => {
+                println!("leader");
                 asynchronous::spawn(&spawner, leader_task(spawner, tree, link, organize_queue));
                 break;
             }
             Ok(RoleDecision::Follower) => {
+                println!("follower");
                 asynchronous::spawn(&spawner, follower_task(spawner, tree, link, organize_queue));
                 break;
             }
@@ -117,21 +119,20 @@ async fn run_search_round(
     link: &'static ActiveLink,
     organize_queue: &'static asynchronous::Channel<ReceiveMessage, ORGANIZE_QUEUE_SIZE>,
 ) -> Result<RoleDecision, MeshError> {
+    send_discovery(link).await?;
     match asynchronous::select(
         asynchronous::after(asynchronous::Duration::from_secs(1)),
         wait_for_invitation(organize_queue, tree),
     )
     .await
     {
-        asynchronous::Either::First(_) => {
-            send_discovery(link).await?;
-            Ok(RoleDecision::Timeout)
-        }
+        asynchronous::Either::First(_) => Ok(RoleDecision::Timeout),
         asynchronous::Either::Second(role) => Ok(role),
     }
 }
 
 async fn send_discovery(link: &ActiveLink) -> Result<(), MeshError> {
+    println!("discovery");
     let msg = SendMessage::new(BROADCAST_NODE, MessageContent::Discovery, None);
     let data = msg.serialize().map_err(MeshError::SerializationError)?;
     link.send(data, BROADCAST_NODE).await;
@@ -319,6 +320,9 @@ async fn send_initial_topology(
         t.into_iter().collect::<Vec<_, { tree::MAX_LEAFS }>>()
     };
     for (node, parent) in nodes {
+        if node == new {
+            continue;
+        };
         let foreign_content = MessageContent::UpsertEdge((Some(node), parent));
         Mesh::send_content(link, tree, foreign_content, new).await;
     }
@@ -428,7 +432,7 @@ mod tests {
     };
     use tokio::{task::LocalSet, time::sleep};
 
-    fn setup_mesh(spawner: asynchronous::Spawner, link: ActiveLink) -> Mesh {
+    fn setup_mesh(spawner: asynchronous::Spawner, link: &'static ActiveLink) -> Mesh {
         let tree = asynchronous::Mutex::new(Tree::new().unwrap());
         let recv_queue: asynchronous::Channel<(MessageData, Node), 16> =
             asynchronous::Channel::new();
@@ -436,7 +440,7 @@ mod tests {
             asynchronous::Channel::new();
         let mesh = Mesh::new(
             spawner,
-            Box::leak(Box::new(link)),
+            link,
             Box::leak(Box::new(tree)),
             Box::leak(Box::new(recv_queue)),
             Box::leak(Box::new(organize_queue)),
@@ -448,7 +452,7 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn mesh_creation_test() {
         let local = LocalSet::new();
-        let link = MockLink::new(Node::new([0, 0, 0, 0, 0, 1]));
+        let link = Box::leak(Box::new(MockLink::new(Node::new([0, 0, 0, 0, 0, 1]))));
         local
             .run_until(async {
                 let _mesh = setup_mesh((), link);
@@ -460,7 +464,7 @@ mod tests {
     async fn mesh_send_to_self_returns_error() {
         let local = LocalSet::new();
         let self_node = Node::new([0, 0, 0, 0, 0, 1]);
-        let link = MockLink::new(self_node);
+        let mut link = Box::leak(Box::new(MockLink::new(self_node)));
         local
             .run_until(async {
                 let mesh = setup_mesh((), link);
@@ -472,20 +476,21 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn mesh_send_receive_between_two_nodes() {
+    async fn mesh_send_receive_one() {
         let local = LocalSet::new();
 
         let a = Node::new([0, 0, 0, 0, 0, 1]);
         let b = Node::new([0, 0, 0, 0, 0, 2]);
-        let mut link_a = MockLink::new(a);
-        let mut link_b = MockLink::new(b);
-        link_a.connect(&link_b);
-        link_b.connect(&link_a);
+        let mut link_a = Box::leak(Box::new(MockLink::new(a)));
+        let mut link_b = Box::leak(Box::new(MockLink::new(b)));
 
         local
             .run_until(async {
                 let mesh_a = setup_mesh((), link_a);
+
                 sleep(Duration::from_millis(500)).await;
+                link_a.connect(link_b).await;
+                link_b.connect(link_a).await;
                 let mesh_b = setup_mesh((), link_b);
 
                 sleep(Duration::from_secs(5)).await;
@@ -498,6 +503,107 @@ mod tests {
                 let (recv, src) = mesh_b.receive().await;
                 assert_eq!(recv, payload);
                 assert_eq!(src, a);
+            })
+            .await;
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn mesh_send_receive_two() {
+        let local = LocalSet::new();
+
+        let a = Node::new([0, 0, 0, 0, 0, 1]);
+        let b = Node::new([0, 0, 0, 0, 0, 2]);
+        let mut link_a = Box::leak(Box::new(MockLink::new(a)));
+        let mut link_b = Box::leak(Box::new(MockLink::new(b)));
+
+        local
+            .run_until(async {
+                let mesh_a = setup_mesh((), link_a);
+
+                sleep(Duration::from_millis(500)).await;
+                link_a.connect(link_b).await;
+                link_b.connect(link_a).await;
+                let mesh_b = setup_mesh((), link_b);
+
+                sleep(Duration::from_secs(5)).await;
+
+                let payload = MessageData::from([42]);
+                mesh_b.send(payload.clone(), a).await.unwrap();
+
+                sleep(Duration::from_secs(1)).await;
+
+                let (recv, src) = mesh_a.receive().await;
+                assert_eq!(recv, payload);
+                assert_eq!(src, b);
+            })
+            .await;
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn mesh_send_receive_triple() {
+        let local = LocalSet::new();
+
+        let a = Node::new([0, 0, 0, 0, 0, 1]);
+        let b = Node::new([0, 0, 0, 0, 0, 2]);
+        let c = Node::new([0, 0, 0, 0, 0, 3]);
+        let link_a = Box::leak(Box::new(MockLink::new(a)));
+        let link_b = Box::leak(Box::new(MockLink::new(b)));
+        let link_c = Box::leak(Box::new(MockLink::new(c)));
+
+        local
+            .run_until(async {
+                let mesh_a = setup_mesh((), link_a);
+
+                sleep(Duration::from_millis(100)).await;
+                link_a.connect(link_b).await;
+                link_b.connect(link_a).await;
+                let mesh_b = setup_mesh((), link_b);
+
+                sleep(Duration::from_millis(6000)).await;
+                link_a.connect(link_c).await;
+                link_b.connect(link_c).await;
+                link_c.connect(link_a).await;
+                link_c.connect(link_b).await;
+                let mesh_c = setup_mesh((), link_c);
+
+                sleep(Duration::from_secs(5)).await;
+
+                print!("{}", mesh_a.tree.lock().await);
+
+                let payload = MessageData::from([42]);
+                mesh_a.send(payload.clone(), b).await.unwrap();
+                mesh_a.send(payload.clone(), c).await.unwrap();
+                mesh_b.send(payload.clone(), a).await.unwrap();
+
+                sleep(Duration::from_secs(1)).await;
+
+                let (recv, src) = mesh_a.receive().await;
+                assert_eq!(recv, payload);
+                assert_eq!(src, b);
+
+                let (recv, src) = mesh_b.receive().await;
+                assert_eq!(recv, payload);
+                assert_eq!(src, a);
+
+                let (recv, src) = mesh_c.receive().await;
+                assert_eq!(recv, payload);
+                assert_eq!(src, a);
+
+                mesh_b.send(payload.clone(), c).await.unwrap();
+                mesh_c.send(payload.clone(), a).await.unwrap();
+                mesh_c.send(payload.clone(), b).await.unwrap();
+
+                let (recv, src) = mesh_a.receive().await;
+                assert_eq!(recv, payload);
+                assert_eq!(src, c);
+
+                let (recv, src) = mesh_b.receive().await;
+                assert_eq!(recv, payload);
+                assert_eq!(src, c);
+
+                let (recv, src) = mesh_c.receive().await;
+                assert_eq!(recv, payload);
+                assert_eq!(src, b);
             })
             .await;
     }
