@@ -26,6 +26,9 @@ hardware = [
     "embassy-time",
     "embassy-sync",
     "embassy-futures",
+    "ssd1306",
+    "embedded-hal-bus",
+    "embedded-hal-async",
 ]
 
 [dependencies]
@@ -63,6 +66,10 @@ esp-println = { version = "0.16.1", features = [
 ], optional = true }
 heapless = { version = "0.9.2", features = ["portable-atomic"] }
 tokio = {version = "1.49.0", features = ["sync", "rt", "macros", "time"], optional = true }
+ssd1306 = {version = "0.10.0", features = ["async"], optional = true }
+embedded-hal-bus = {version = "0.3.0", features = ["portable-atomic", "async"], optional = true }
+embedded-hal-async = {version = "1.0.0", optional = true }
+embedded-graphics = "0.8.1"
 
 [profile.dev]
 # Rust debug is too slow.
