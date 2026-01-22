@@ -12,10 +12,6 @@ mod logic;
 
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
-use embedded_hal_bus::{
-    i2c::{self, AtomicDevice},
-    util::AtomicCell,
-};
 use esp_alloc as _;
 use esp_backtrace as _;
 use esp_hal::{
