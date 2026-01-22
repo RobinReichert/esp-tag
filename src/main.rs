@@ -12,16 +12,26 @@ mod logic;
 
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
+use embedded_hal_bus::{
+    i2c::{self, AtomicDevice},
+    util::AtomicCell,
+};
 use esp_alloc as _;
 use esp_backtrace as _;
 use esp_hal::{
-    time::Rate, clock::CpuClock, interrupt::software::SoftwareInterruptControl, timer::timg::TimerGroup,
+    clock::CpuClock, interrupt::software::SoftwareInterruptControl, time::Rate,
+    timer::timg::TimerGroup,
 };
 use esp_println::println;
 use esp_radio::{Controller, esp_now::BROADCAST_ADDRESS};
-use embedded_hal_bus::{i2c::{self, AtomicDevice}, util::AtomicCell};
 
-use crate::{hardware::{display::Display, shared_bus::{SharedBus, SharedBusInterface}}, logic::{mesh, message, node::Node, tree::Tree}};
+use crate::{
+    hardware::{
+        display::Display,
+        shared_bus::{SharedBus, SharedBusInterface},
+    },
+    logic::{mesh, message, node::Node, tree::Tree},
+};
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -48,10 +58,10 @@ async fn main(spawner: Spawner) -> ! {
         peripherals.I2C0,
         esp_hal::i2c::master::Config::default().with_frequency(Rate::from_khz(400)),
     )
-        .unwrap()
-        .with_scl(peripherals.GPIO9)
-        .with_sda(peripherals.GPIO8)
-        .into_async();
+    .unwrap()
+    .with_scl(peripherals.GPIO9)
+    .with_sda(peripherals.GPIO8)
+    .into_async();
 
     let shared_bus = SharedBus::new(i2c_bus);
 
