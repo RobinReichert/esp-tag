@@ -40,7 +40,7 @@ where
     }
 
     pub async fn show_logo(&mut self) -> Result<(), DisplayError> {
-        let raw_image = ImageRaw::<BinaryColor>::new(&bmp::LOGO_BITMAP, 128);
+        let raw_image = ImageRaw::<BinaryColor>::new(&bmp::LOGO_BITMAP, 120);
         let image = Image::new(&raw_image, Point::new(8, 0));
         image
             .draw(&mut self.display)
