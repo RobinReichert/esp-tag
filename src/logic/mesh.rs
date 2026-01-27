@@ -19,8 +19,8 @@ use crate::logic::{
     node::Node,
     tree::{self, Tree},
 };
-const RECV_QUEUE_SIZE: usize = 16;
-const ORGANIZE_QUEUE_SIZE: usize = 16;
+pub const RECV_QUEUE_SIZE: usize = 16;
+pub const ORGANIZE_QUEUE_SIZE: usize = 16;
 const MAX_NEWS: usize = 16;
 
 pub struct Mesh {

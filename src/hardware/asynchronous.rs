@@ -1,5 +1,5 @@
 use embassy_executor::SpawnToken;
-use embassy_sync::blocking_mutex::raw::NoopRawMutex;
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 pub use embassy_time::{Duration, Ticker};
 
 pub type Spawner = embassy_executor::Spawner;
@@ -17,12 +17,15 @@ pub trait MyChannel<T> {
     fn my_recv(&self) -> Self::RecvFut<'_>;
 }
 
-pub type Channel<T, const N: usize> =
-    embassy_sync::channel::Channel<embassy_sync::blocking_mutex::raw::NoopRawMutex, T, N>;
+pub type Channel<T, const N: usize> = embassy_sync::channel::Channel<
+    embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+    T,
+    N,
+>;
 
 impl<T, const N: usize> MyChannel<T> for Channel<T, N> {
     type RecvFut<'a>
-        = embassy_sync::channel::ReceiveFuture<'a, NoopRawMutex, T, N>
+        = embassy_sync::channel::ReceiveFuture<'a, CriticalSectionRawMutex, T, N>
     where
         T: 'a;
 
@@ -35,7 +38,7 @@ impl<T, const N: usize> MyChannel<T> for Channel<T, N> {
     }
 }
 
-pub type Mutex<T> = embassy_sync::mutex::Mutex<NoopRawMutex, T>;
+pub type Mutex<T> = embassy_sync::mutex::Mutex<CriticalSectionRawMutex, T>;
 
 pub enum Either<L, R> {
     First(L),
