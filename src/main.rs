@@ -10,7 +10,24 @@
 mod hardware;
 mod logic;
 
+use crate::{
+    hardware::{
+        bus::{SharedBus, SharedBusInterface},
+        display::Display,
+        link::ESPNowLink,
+    },
+    logic::{
+        link::{ActiveLink, Link},
+        mesh::{self, Mesh, ORGANIZE_QUEUE_SIZE, RECV_QUEUE_SIZE},
+        message,
+        node::Node,
+        tree::Tree,
+    },
+    message::{MessageData, ReceiveMessage},
+};
 use embassy_executor::Spawner;
+use embassy_net::{DhcpConfig, StackResources};
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel, mutex::Mutex};
 use embassy_time::{Duration, Timer};
 use esp_alloc as _;
 use esp_backtrace as _;
@@ -20,14 +37,14 @@ use esp_hal::{
 };
 use esp_println::println;
 use esp_radio::{Controller, esp_now::BROADCAST_ADDRESS};
+use static_cell::StaticCell;
 
-use crate::{
-    hardware::{
-        display::Display,
-        shared_bus::{SharedBus, SharedBusInterface},
-    },
-    logic::{mesh, message, node::Node, tree::Tree},
-};
+static RECV_QUEUE: Channel<CriticalSectionRawMutex, (MessageData, Node), RECV_QUEUE_SIZE> =
+    Channel::new();
+static ORGANIZE_QUEUE: Channel<CriticalSectionRawMutex, ReceiveMessage, ORGANIZE_QUEUE_SIZE> =
+    Channel::new();
+static ROUTING_TREE: StaticCell<Mutex<CriticalSectionRawMutex, Tree>> = StaticCell::new();
+static LINK: StaticCell<ActiveLink> = StaticCell::new();
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -47,8 +64,26 @@ async fn main(spawner: Spawner) -> ! {
     let wifi = peripherals.WIFI;
     let (mut controller, interfaces) =
         esp_radio::wifi::new(&esp_radio_ctrl, wifi, Default::default()).unwrap();
-    controller.set_mode(esp_radio::wifi::WifiMode::Sta).unwrap();
+    controller
+        .set_mode(esp_radio::wifi::WifiMode::ApSta)
+        .unwrap();
     controller.start().unwrap();
+
+    let access_point = interfaces.ap;
+    let (stack, runner) = embassy_net::new(
+        access_point,
+        embassy_net::Config::dhcpv4(DhcpConfig::default()),
+        mk_static!(StackResources<3>, StackResources::<3>::new()),
+        5,
+    );
+
+    let esp_now = interfaces.esp_now;
+    esp_now.set_channel(11).unwrap();
+    esp_println::println!("esp-now version {}", esp_now.version().unwrap());
+    let (_, sender, receiver) = esp_now.split();
+    let link = LINK.init(ActiveLink::new(spawner, sender, receiver));
+    let routing = ROUTING_TREE.init(Mutex::new(unwrap_print!(Tree::new())));
+    let mesh = Mesh::new(spawner, link, routing, &RECV_QUEUE, &ORGANIZE_QUEUE);
 
     let i2c_bus = esp_hal::i2c::master::I2c::new(
         peripherals.I2C0,
@@ -64,13 +99,13 @@ async fn main(spawner: Spawner) -> ! {
     let mut display = Display::new(SharedBusInterface::new(&shared_bus));
     display.init().await;
     unwrap_print!(display.show_center_text("Welcome").await);
-    Timer::after(Duration::from_millis(500)).await;
+    Timer::after(Duration::from_millis(400)).await;
     unwrap_print!(display.clear().await);
-    Timer::after(Duration::from_millis(100)).await;
+    Timer::after(Duration::from_millis(50)).await;
     unwrap_print!(display.show_center_text("to").await);
-    Timer::after(Duration::from_millis(500)).await;
+    Timer::after(Duration::from_millis(400)).await;
     unwrap_print!(display.clear().await);
-    Timer::after(Duration::from_millis(100)).await;
+    Timer::after(Duration::from_millis(50)).await;
     unwrap_print!(display.show_logo().await);
 
     loop {}

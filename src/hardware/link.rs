@@ -5,7 +5,7 @@ use crate::logic::{
     node::Node,
 };
 use embassy_executor::Spawner;
-use embassy_sync::blocking_mutex::raw::NoopRawMutex;
+use embassy_sync::blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex};
 use embassy_sync::channel::Channel;
 use esp_println::println;
 use esp_radio::esp_now::{EspNowReceiver, EspNowSender};
@@ -13,24 +13,25 @@ use esp_radio::esp_now::{EspNowReceiver, EspNowSender};
 const SEND_QUEUE_SIZE: usize = 16;
 const RECV_QUEUE_SIZE: usize = 16;
 
+static SEND_QUEUE: Channel<CriticalSectionRawMutex, SendData, SEND_QUEUE_SIZE> = Channel::new();
+static RECV_QUEUE: Channel<CriticalSectionRawMutex, RecvData, RECV_QUEUE_SIZE> = Channel::new();
+
 pub struct ESPNowLink {
-    send_queue: &'static Channel<NoopRawMutex, SendData, SEND_QUEUE_SIZE>,
-    recv_queue: &'static Channel<NoopRawMutex, RecvData, RECV_QUEUE_SIZE>,
+    send_queue: &'static Channel<CriticalSectionRawMutex, SendData, SEND_QUEUE_SIZE>,
+    recv_queue: &'static Channel<CriticalSectionRawMutex, RecvData, RECV_QUEUE_SIZE>,
 }
 
 impl ESPNowLink {
     pub fn new(
         spawner: Spawner,
-        send_queue: &'static Channel<NoopRawMutex, SendData, SEND_QUEUE_SIZE>,
-        recv_queue: &'static Channel<NoopRawMutex, RecvData, RECV_QUEUE_SIZE>,
         sender: EspNowSender<'static>,
         receiver: EspNowReceiver<'static>,
     ) -> Self {
-        spawner.spawn(send_task(send_queue, sender));
-        spawner.spawn(recv_task(recv_queue, receiver));
+        spawner.spawn(send_task(&SEND_QUEUE, sender));
+        spawner.spawn(recv_task(&RECV_QUEUE, receiver));
         ESPNowLink {
-            send_queue,
-            recv_queue,
+            send_queue: &SEND_QUEUE,
+            recv_queue: &RECV_QUEUE,
         }
     }
 }
@@ -67,7 +68,7 @@ impl<'a> Link<'a> for ESPNowLink {
 
 #[embassy_executor::task]
 async fn send_task(
-    send_queue: &'static Channel<NoopRawMutex, SendData, SEND_QUEUE_SIZE>,
+    send_queue: &'static Channel<CriticalSectionRawMutex, SendData, SEND_QUEUE_SIZE>,
     mut sender: EspNowSender<'static>,
 ) -> ! {
     loop {
@@ -80,7 +81,7 @@ async fn send_task(
 
 #[embassy_executor::task]
 async fn recv_task(
-    recv_queue: &'static Channel<NoopRawMutex, RecvData, RECV_QUEUE_SIZE>,
+    recv_queue: &'static Channel<CriticalSectionRawMutex, RecvData, RECV_QUEUE_SIZE>,
     mut receiver: EspNowReceiver<'static>,
 ) -> ! {
     loop {
