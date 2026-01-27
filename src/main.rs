@@ -26,7 +26,6 @@ use crate::{
     message::{MessageData, ReceiveMessage},
 };
 use embassy_executor::Spawner;
-use embassy_net::{DhcpConfig, StackResources};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel, mutex::Mutex};
 use embassy_time::{Duration, Timer};
 use esp_alloc as _;
@@ -64,18 +63,8 @@ async fn main(spawner: Spawner) -> ! {
     let wifi = peripherals.WIFI;
     let (mut controller, interfaces) =
         esp_radio::wifi::new(&esp_radio_ctrl, wifi, Default::default()).unwrap();
-    controller
-        .set_mode(esp_radio::wifi::WifiMode::ApSta)
-        .unwrap();
+    controller.set_mode(esp_radio::wifi::WifiMode::Sta).unwrap();
     controller.start().unwrap();
-
-    let access_point = interfaces.ap;
-    let (stack, runner) = embassy_net::new(
-        access_point,
-        embassy_net::Config::dhcpv4(DhcpConfig::default()),
-        mk_static!(StackResources<3>, StackResources::<3>::new()),
-        5,
-    );
 
     let esp_now = interfaces.esp_now;
     esp_now.set_channel(11).unwrap();
