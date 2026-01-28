@@ -13,30 +13,43 @@ const MAX_PREFIX: usize = 32;
 
 pub struct Tree {
     leafs: Arena<Leaf, MAX_LEAFS>,
-    root_id: SlotId,
+    root_id: Option<SlotId>,
 }
 
 impl Tree {
-    pub fn new() -> Result<Self, TreeError> {
-        let root = Leaf::new_own();
+    pub fn new() -> Self {
         let mut leafs = Arena::new();
-        let root_id = leafs.alloc(root).ok_or(TreeError::LeafAllocationError)?;
-        Ok(Tree {
+        Tree {
             leafs,
-            root_id: root_id,
-        })
+            root_id: None,
+        }
+    }
+
+    pub fn init(&mut self) -> Result<(), TreeError> {
+        let root = Leaf::new_own();
+        self.root_id = Some(
+            self.leafs
+                .alloc(root)
+                .ok_or(TreeError::LeafAllocationError)?,
+        );
+        Ok(())
     }
 
     pub fn upsert_edge(&mut self, from: Option<Node>, to: Node) -> Result<(), TreeError> {
-        let leaf_id = match self.remove_node_helper(to, self.root_id) {
-            Some(id) => id,
-            None => self
-                .leafs
-                .alloc(Leaf::new_foreign(to))
-                .ok_or(TreeError::LeafAllocationError)?,
-        };
-        self.insert_node_helper(from, self.root_id, leaf_id)
-            .ok_or(TreeError::NodeNotFoundError)
+        let leaf_id =
+            match self.remove_node_helper(to, self.root_id.ok_or(TreeError::UninitializedError)?) {
+                Some(id) => id,
+                None => self
+                    .leafs
+                    .alloc(Leaf::new_foreign(to))
+                    .ok_or(TreeError::LeafAllocationError)?,
+            };
+        self.insert_node_helper(
+            from,
+            self.root_id.ok_or(TreeError::UninitializedError)?,
+            leaf_id,
+        )
+        .ok_or(TreeError::NodeNotFoundError)
     }
 
     fn remove_node_helper(&self, address: Node, current_id: SlotId) -> Option<SlotId> {
@@ -88,7 +101,10 @@ impl Tree {
     }
 
     pub fn next_hop(&self, destination: Node) -> Result<Node, TreeError> {
-        self.next_hop_helper(destination, self.root_id)
+        self.next_hop_helper(
+            destination,
+            self.root_id.ok_or(TreeError::UninitializedError)?,
+        )
     }
 
     fn next_hop_helper(&self, destination: Node, current_id: SlotId) -> Result<Node, TreeError> {
@@ -118,7 +134,10 @@ impl Tree {
     }
 
     pub fn height(&self) -> usize {
-        self.height_helper(self.root_id)
+        match self.root_id {
+            None => 0,
+            Some(id) => self.height_helper(id),
+        }
     }
 
     fn height_helper(&self, current_id: SlotId) -> usize {
@@ -180,7 +199,10 @@ impl Tree {
 impl Display for Tree {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let prefixs: [Option<Prefix>; MAX_PREFIX] = [(); MAX_PREFIX].map(|_| None);
-        self.fmt_leaf(f, self.root_id, &prefixs)
+        match self.root_id {
+            None => write!(f, "{}", TreeError::UninitializedError),
+            Some(id) => self.fmt_leaf(f, id, &prefixs),
+        }
     }
 }
 
@@ -235,8 +257,9 @@ impl<'a> IntoIterator for &'a Tree {
 
     fn into_iter(self) -> Self::IntoIter {
         let mut queue = Queue::new();
-        let _ = queue.enqueue((self.root_id, None));
-
+        if let Some(id) = self.root_id {
+            let _ = queue.enqueue((id, None));
+        }
         TreeIter { tree: self, queue }
     }
 }
@@ -297,14 +320,16 @@ mod tests {
 
     #[test]
     fn tree_creation() {
-        let tree = unwrap_print!(Tree::new());
+        let mut tree = Tree::new();
+        unwrap_print!(tree.init());
 
         assert_eq!(tree.height(), 1);
     }
 
     #[test]
     fn insert_single_edge() {
-        let mut tree = unwrap_print!(Tree::new());
+        let mut tree = Tree::new();
+        unwrap_print!(tree.init());
 
         unwrap_print!(tree.upsert_edge(None, n(1)));
 
@@ -314,7 +339,8 @@ mod tests {
 
     #[test]
     fn insert_multiple_children() {
-        let mut tree = unwrap_print!(Tree::new());
+        let mut tree = Tree::new();
+        unwrap_print!(tree.init());
 
         unwrap_print!(tree.upsert_edge(None, n(1)));
         unwrap_print!(tree.upsert_edge(None, n(2)));
@@ -328,7 +354,8 @@ mod tests {
 
     #[test]
     fn insert_deep_tree() {
-        let mut tree = unwrap_print!(Tree::new());
+        let mut tree = Tree::new();
+        unwrap_print!(tree.init());
 
         unwrap_print!(tree.upsert_edge(None, n(1)));
         unwrap_print!(tree.upsert_edge(Some(n(1)), n(2)));
@@ -344,7 +371,8 @@ mod tests {
 
     #[test]
     fn reparent_node_with_upsert() {
-        let mut tree = unwrap_print!(Tree::new());
+        let mut tree = Tree::new();
+        unwrap_print!(tree.init());
 
         unwrap_print!(tree.upsert_edge(None, n(1)));
         unwrap_print!(tree.upsert_edge(Some(n(1)), n(2)));
@@ -357,7 +385,8 @@ mod tests {
 
     #[test]
     fn next_hop_unknown_node() {
-        let tree = unwrap_print!(Tree::new());
+        let mut tree = Tree::new();
+        unwrap_print!(tree.init());
 
         let err = tree.next_hop(n(42)).unwrap_err();
         assert!(matches!(err, TreeError::NodeNotFoundError));
@@ -365,7 +394,8 @@ mod tests {
 
     #[test]
     fn insert_under_unknown_parent() {
-        let mut tree = unwrap_print!(Tree::new());
+        let mut tree = Tree::new();
+        unwrap_print!(tree.init());
 
         let err = tree.upsert_edge(Some(n(99)), n(1)).unwrap_err();
         assert!(matches!(err, TreeError::NodeNotFoundError));
@@ -373,7 +403,8 @@ mod tests {
 
     #[test]
     fn height_with_branching() {
-        let mut tree = unwrap_print!(Tree::new());
+        let mut tree = Tree::new();
+        unwrap_print!(tree.init());
 
         unwrap_print!(tree.upsert_edge(None, n(1)));
         unwrap_print!(tree.upsert_edge(Some(n(1)), n(2)));

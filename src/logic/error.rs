@@ -8,9 +8,24 @@ use core::fmt;
 use heapless::CapacityError;
 
 #[derive(Debug)]
+pub enum AsyncError {
+    SpawnError,
+}
+
+impl fmt::Display for AsyncError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SpawnError => write!(f, "Failed to spawn task"),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum LinkError {
     QueueFullError(),
     QueueEmptyError(),
+    AlreadyInitialized,
+    SpawnError,
     MockError,
 }
 
@@ -25,6 +40,8 @@ impl fmt::Display for LinkError {
                 f,
                 "Failed to receive new message since message queue was empty:\n"
             ),
+            Self::AlreadyInitialized => write!(f, "Link has already been initialized"),
+            Self::SpawnError => write!(f, "Failed to spawn task"),
             Self::MockError => write!(f, "Nothing failed this is just a test"),
         }
     }
@@ -39,6 +56,7 @@ pub enum MeshError {
     OrganizeQueueSendError(),
     OrganizeQueueRecvError(),
     ReceiveQueueSendError(),
+    SpawnError,
 }
 
 impl fmt::Display for MeshError {
@@ -57,6 +75,7 @@ impl fmt::Display for MeshError {
             Self::ReceiveQueueSendError() => {
                 write!(f, "Failed to send receive message to channel:\n")
             }
+            Self::SpawnError => write!(f, "Failed to spawn task"),
         }
     }
 }
@@ -67,6 +86,7 @@ pub enum TreeError {
     NodeNotFoundError,
     LeafNotFoundError(ArenaError),
     RootIsDestinationError,
+    UninitializedError,
 }
 
 impl fmt::Display for TreeError {
@@ -76,6 +96,7 @@ impl fmt::Display for TreeError {
             Self::NodeNotFoundError => write!(f, "Could not find Node"),
             Self::LeafNotFoundError(e) => write!(f, "Could not find Leaf:\n{}", e),
             Self::RootIsDestinationError => write!(f, "The root of this tree is the destination"),
+            Self::UninitializedError => write!(f, "Tree is uninitialized"),
         }
     }
 }
