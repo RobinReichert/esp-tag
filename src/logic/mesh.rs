@@ -28,6 +28,7 @@ pub struct Mesh {
     tree: &'static asynchronous::Mutex<Tree>,
     recv_queue: &'static asynchronous::Channel<(MessageData, Node), RECV_QUEUE_SIZE>,
     organize_queue: &'static asynchronous::Channel<ReceiveMessage, ORGANIZE_QUEUE_SIZE>,
+    spawner: asynchronous::Spawner,
 }
 
 impl Mesh {
@@ -37,18 +38,22 @@ impl Mesh {
         tree: &'static asynchronous::Mutex<Tree>,
         recv_queue: &'static asynchronous::Channel<(MessageData, Node), RECV_QUEUE_SIZE>,
         organize_queue: &'static asynchronous::Channel<ReceiveMessage, ORGANIZE_QUEUE_SIZE>,
-    ) -> Result<Self, MeshError> {
-        asynchronous::spawn(&spawner, searcher_task(spawner, tree, link, organize_queue));
-        asynchronous::spawn(
-            &spawner,
-            dispatcher_task(link, tree, recv_queue, organize_queue),
-        );
-        Ok(Self {
+    ) -> Self {
+        Self {
             link,
             tree,
             recv_queue,
             organize_queue,
-        })
+            spawner,
+        }
+    }
+
+    pub fn init(&self) -> Result<(), MeshError> {
+        asynchronous::spawn(&self.spawner, searcher_task(self.spawner, self.tree, self.link, self.organize_queue)).map_err(|_| MeshError::SpawnError)?;
+        asynchronous::spawn(
+            &self.spawner,
+            dispatcher_task(self.link, self.tree, self.recv_queue, self.organize_queue),
+        ).map_err(|_| MeshError::SpawnError)
     }
 
     pub async fn send(&self, data: MessageData, destination: Node) -> Result<(), MeshError> {
@@ -444,8 +449,8 @@ mod tests {
             Box::leak(Box::new(tree)),
             Box::leak(Box::new(recv_queue)),
             Box::leak(Box::new(organize_queue)),
-        )
-        .unwrap();
+        );
+        mesh.init().unwrap();
         mesh
     }
 

@@ -2,10 +2,13 @@
 pub use std::time::Duration;
 use tokio::sync::{futures, mpsc};
 
+use crate::logic::error::AsyncError;
+
 pub type Spawner = ();
 
-pub fn spawn(_spawner: &(), fut: impl Future<Output = ()> + 'static) {
+pub fn spawn(_spawner: &(), fut: impl Future<Output = ()> + 'static) -> Result<(), AsyncError> {
     tokio::task::spawn_local(fut);
+    Ok(())
 }
 
 pub type Channel<T, const N: usize> = StdChannel<T, N>;

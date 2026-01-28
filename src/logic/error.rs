@@ -5,7 +5,21 @@ use crate::logic::{
     node::Node,
 };
 use core::fmt;
+use embassy_executor::SpawnError;
 use heapless::CapacityError;
+
+#[derive(Debug)]
+pub enum AsyncError {
+    SpawnError,
+}
+
+impl fmt::Display for AsyncError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SpawnError => write!(f, "Failed to spawn task"),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum LinkError {
@@ -39,6 +53,7 @@ pub enum MeshError {
     OrganizeQueueSendError(),
     OrganizeQueueRecvError(),
     ReceiveQueueSendError(),
+    SpawnError,
 }
 
 impl fmt::Display for MeshError {
@@ -57,6 +72,7 @@ impl fmt::Display for MeshError {
             Self::ReceiveQueueSendError() => {
                 write!(f, "Failed to send receive message to channel:\n")
             }
+            Self::SpawnError => write!(f, "Failed to spawn task"),
         }
     }
 }
