@@ -62,19 +62,22 @@ async fn main(spawner: Spawner) -> ! {
     let esp_radio_ctrl = &*mk_static!(Controller<'static>, esp_radio::init().unwrap());
     let wifi = peripherals.WIFI;
     let (mut controller, interfaces) =
-        esp_radio::wifi::new(&esp_radio_ctrl, wifi, Default::default()).unwrap();
-    controller
-        .set_mode(esp_radio::wifi::WifiMode::ApSta)
-        .unwrap();
+    esp_radio::wifi::new(&esp_radio_ctrl, wifi, Default::default()).unwrap();
+    controller.set_mode(esp_radio::wifi::WifiMode::Sta).unwrap();
     controller.start().unwrap();
 
     let esp_now = interfaces.esp_now;
     esp_now.set_channel(11).unwrap();
     esp_println::println!("esp-now version {}", esp_now.version().unwrap());
     let (_, sender, receiver) = esp_now.split();
-    let link = LINK.init(ActiveLink::new(spawner, sender, receiver));
-    let routing = ROUTING_TREE.init(Mutex::new(unwrap_print!(Tree::new())));
+    let mut link = ActiveLink::new(spawner, sender, receiver);
+    unwrap_print!(link.init());
+    let link = LINK.init(link);
+    let mut tree = Tree::new();
+    unwrap_print!(tree.init());
+    let routing = ROUTING_TREE.init(Mutex::new(tree));
     let mesh = Mesh::new(spawner, link, routing, &RECV_QUEUE, &ORGANIZE_QUEUE);
+    unwrap_print!(mesh.init());
 
     let i2c_bus = esp_hal::i2c::master::I2c::new(
         peripherals.I2C0,

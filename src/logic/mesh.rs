@@ -438,7 +438,9 @@ mod tests {
     use tokio::{task::LocalSet, time::sleep};
 
     fn setup_mesh(spawner: asynchronous::Spawner, link: &'static ActiveLink) -> Mesh {
-        let tree = asynchronous::Mutex::new(Tree::new().unwrap());
+        let mut tree = Tree::new();
+        tree.init().unwrap();
+        let tree = asynchronous::Mutex::new(tree);
         let recv_queue: asynchronous::Channel<(MessageData, Node), 16> =
             asynchronous::Channel::new();
         let organize_queue: asynchronous::Channel<message::ReceiveMessage, 16> =

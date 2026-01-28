@@ -1,3 +1,4 @@
+use crate::logic::error::AsyncError;
 use crate::logic::message::MessageData;
 use crate::logic::{
     error::LinkError,
@@ -19,6 +20,9 @@ static RECV_QUEUE: Channel<CriticalSectionRawMutex, RecvData, RECV_QUEUE_SIZE> =
 pub struct ESPNowLink {
     send_queue: &'static Channel<CriticalSectionRawMutex, SendData, SEND_QUEUE_SIZE>,
     recv_queue: &'static Channel<CriticalSectionRawMutex, RecvData, RECV_QUEUE_SIZE>,
+    sender: Option<EspNowSender<'static>>,
+    receiver: Option<EspNowReceiver<'static>>,
+    spawner: Spawner,
 }
 
 impl ESPNowLink {
@@ -27,12 +31,21 @@ impl ESPNowLink {
         sender: EspNowSender<'static>,
         receiver: EspNowReceiver<'static>,
     ) -> Self {
-        spawner.spawn(send_task(&SEND_QUEUE, sender));
-        spawner.spawn(recv_task(&RECV_QUEUE, receiver));
         ESPNowLink {
             send_queue: &SEND_QUEUE,
             recv_queue: &RECV_QUEUE,
+            sender: Some(sender),
+            receiver: Some(receiver),
+            spawner,
         }
+    }
+
+    pub fn init(&mut self) -> Result<(), LinkError> {
+        let sender = self.sender.take().ok_or(LinkError::AlreadyInitialized)?;
+        let receiver = self.receiver.take().ok_or(LinkError::AlreadyInitialized)?;
+        self.spawner.spawn(send_task(&SEND_QUEUE, sender)).map_err(|_| LinkError::SpawnError)?;
+        self.spawner.spawn(recv_task(&RECV_QUEUE, receiver)).map_err(|_| LinkError::SpawnError)?;
+        Ok(())
     }
 }
 
