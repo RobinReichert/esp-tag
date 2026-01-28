@@ -27,20 +27,29 @@ impl Tree {
 
     pub fn init(&mut self) -> Result<(), TreeError> {
         let root = Leaf::new_own();
-        self.root_id = Some(self.leafs.alloc(root).ok_or(TreeError::LeafAllocationError)?);
+        self.root_id = Some(
+            self.leafs
+                .alloc(root)
+                .ok_or(TreeError::LeafAllocationError)?,
+        );
         Ok(())
     }
 
     pub fn upsert_edge(&mut self, from: Option<Node>, to: Node) -> Result<(), TreeError> {
-        let leaf_id = match self.remove_node_helper(to, self.root_id.ok_or(TreeError::UninitializedError)?) {
-            Some(id) => id,
-            None => self
-                .leafs
-                .alloc(Leaf::new_foreign(to))
-                .ok_or(TreeError::LeafAllocationError)?,
-        };
-        self.insert_node_helper(from, self.root_id.ok_or(TreeError::UninitializedError)?, leaf_id)
-            .ok_or(TreeError::NodeNotFoundError)
+        let leaf_id =
+            match self.remove_node_helper(to, self.root_id.ok_or(TreeError::UninitializedError)?) {
+                Some(id) => id,
+                None => self
+                    .leafs
+                    .alloc(Leaf::new_foreign(to))
+                    .ok_or(TreeError::LeafAllocationError)?,
+            };
+        self.insert_node_helper(
+            from,
+            self.root_id.ok_or(TreeError::UninitializedError)?,
+            leaf_id,
+        )
+        .ok_or(TreeError::NodeNotFoundError)
     }
 
     fn remove_node_helper(&self, address: Node, current_id: SlotId) -> Option<SlotId> {
@@ -92,7 +101,10 @@ impl Tree {
     }
 
     pub fn next_hop(&self, destination: Node) -> Result<Node, TreeError> {
-        self.next_hop_helper(destination, self.root_id.ok_or(TreeError::UninitializedError)?)
+        self.next_hop_helper(
+            destination,
+            self.root_id.ok_or(TreeError::UninitializedError)?,
+        )
     }
 
     fn next_hop_helper(&self, destination: Node, current_id: SlotId) -> Result<Node, TreeError> {
@@ -243,11 +255,11 @@ impl<'a> IntoIterator for &'a Tree {
     type Item = (Node, Option<Node>);
     type IntoIter = TreeIter<'a>;
 
-        fn into_iter(self) -> Self::IntoIter {
-            let mut queue = Queue::new();
-            if let Some(id) = self.root_id {
-                let _ = queue.enqueue((id, None));
-            }
+    fn into_iter(self) -> Self::IntoIter {
+        let mut queue = Queue::new();
+        if let Some(id) = self.root_id {
+            let _ = queue.enqueue((id, None));
+        }
         TreeIter { tree: self, queue }
     }
 }

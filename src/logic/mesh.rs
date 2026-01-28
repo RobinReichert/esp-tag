@@ -49,11 +49,16 @@ impl Mesh {
     }
 
     pub fn init(&self) -> Result<(), MeshError> {
-        asynchronous::spawn(&self.spawner, searcher_task(self.spawner, self.tree, self.link, self.organize_queue)).map_err(|_| MeshError::SpawnError)?;
+        asynchronous::spawn(
+            &self.spawner,
+            searcher_task(self.spawner, self.tree, self.link, self.organize_queue),
+        )
+        .map_err(|_| MeshError::SpawnError)?;
         asynchronous::spawn(
             &self.spawner,
             dispatcher_task(self.link, self.tree, self.recv_queue, self.organize_queue),
-        ).map_err(|_| MeshError::SpawnError)
+        )
+        .map_err(|_| MeshError::SpawnError)
     }
 
     pub async fn send(&self, data: MessageData, destination: Node) -> Result<(), MeshError> {

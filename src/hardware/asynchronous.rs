@@ -6,7 +6,10 @@ use crate::logic::error::AsyncError;
 
 pub type Spawner = embassy_executor::Spawner;
 
-pub fn spawn<S>(spawner: &embassy_executor::Spawner, token: SpawnToken<S>) -> Result<(), AsyncError> {
+pub fn spawn<S>(
+    spawner: &embassy_executor::Spawner,
+    token: SpawnToken<S>,
+) -> Result<(), AsyncError> {
     spawner.spawn(token).map_err(|_| AsyncError::SpawnError)
 }
 

@@ -43,8 +43,12 @@ impl ESPNowLink {
     pub fn init(&mut self) -> Result<(), LinkError> {
         let sender = self.sender.take().ok_or(LinkError::AlreadyInitialized)?;
         let receiver = self.receiver.take().ok_or(LinkError::AlreadyInitialized)?;
-        self.spawner.spawn(send_task(&SEND_QUEUE, sender)).map_err(|_| LinkError::SpawnError)?;
-        self.spawner.spawn(recv_task(&RECV_QUEUE, receiver)).map_err(|_| LinkError::SpawnError)?;
+        self.spawner
+            .spawn(send_task(&SEND_QUEUE, sender))
+            .map_err(|_| LinkError::SpawnError)?;
+        self.spawner
+            .spawn(recv_task(&RECV_QUEUE, receiver))
+            .map_err(|_| LinkError::SpawnError)?;
         Ok(())
     }
 }
