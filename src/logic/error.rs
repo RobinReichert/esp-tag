@@ -5,7 +5,6 @@ use crate::logic::{
     node::Node,
 };
 use core::fmt;
-use embassy_executor::SpawnError;
 use heapless::CapacityError;
 
 #[derive(Debug)]
