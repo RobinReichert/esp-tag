@@ -26,10 +26,6 @@ use crate::{
     message::{MessageData, ReceiveMessage},
 };
 use embassy_executor::Spawner;
-<<<<<<< HEAD
-=======
-use embassy_net::{DhcpConfig, StackResources};
->>>>>>> e19a27a (added ap setup to main)
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel, mutex::Mutex};
 use embassy_time::{Duration, Timer};
 use esp_alloc as _;
@@ -72,17 +68,6 @@ async fn main(spawner: Spawner) -> ! {
         .unwrap();
     controller.start().unwrap();
 
-<<<<<<< HEAD
-=======
-    let access_point = interfaces.ap;
-    let (stack, runner) = embassy_net::new(
-        access_point,
-        embassy_net::Config::dhcpv4(DhcpConfig::default()),
-        mk_static!(StackResources<3>, StackResources::<3>::new()),
-        5,
-    );
-
->>>>>>> e19a27a (added ap setup to main)
     let esp_now = interfaces.esp_now;
     esp_now.set_channel(11).unwrap();
     esp_println::println!("esp-now version {}", esp_now.version().unwrap());
